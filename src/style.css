@@ -2129,3 +2129,38 @@ svg .ts { font-family: var(--mono); font-size: 9px; fill: #5F5E5A; }
 .c-red .ts, .c-red .th { fill: #B22222; }
 .c-gold rect { stroke: #8C6A28; }
 .c-gold .ts, .c-gold .th { fill: #8C6A28; }
+
+/* Loffi LIVE avatar — pulsing ring + LIVE dot */
+#loffi-photo.live::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid #c41230;
+  opacity: 0;
+  animation: loffi-pulse 1.8s ease-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+#loffi-photo.live::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #c41230;
+  border: 2px solid #faf8f3;
+  box-shadow: 0 0 0 1px #0a0a08;
+  animation: loffi-blink 1.2s ease-in-out infinite;
+  z-index: 2;
+}
+@keyframes loffi-pulse {
+  0%   { transform: scale(0.95); opacity: 0.9; }
+  100% { transform: scale(1.18); opacity: 0; }
+}
+@keyframes loffi-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}

@@ -40,7 +40,7 @@ export default async (req) => {
     },
     body: JSON.stringify({
       model: body.model || 'claude-sonnet-4-20250514',
-      max_tokens: body.max_tokens || 1200,
+      max_tokens: Math.min(body.max_tokens || 800, 2000),
       messages: body.messages,
     }),
   });

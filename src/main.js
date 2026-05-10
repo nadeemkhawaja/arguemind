@@ -412,7 +412,7 @@ const CATS = [
 const S = {
   topic:'', positions:[], position:'',
   persona:'Domain Analyst', tone:'compelling and rhetorically persuasive',
-  depth:'220-270', lang:'', source:'',
+  depth:'130-150', lang:'', source:'',
   layers:{}, totalIn:0, totalOut:0, startTime:0,
   running:false,
   kokoroEnabled:false, kokoroVoice:'af_sky',
@@ -961,8 +961,7 @@ function toggleFeature(f) {
   } else if (f==='video') {
     S.videoOn = !S.videoOn;
     setToggle('tog-video', S.videoOn);
-    document.getElementById('avatar-panel').style.display = S.videoOn ? 'block' : 'none';
-    if (S.videoOn) initAvatar();
+    document.getElementById('loffi-photo').classList.toggle('live', S.videoOn);
   }
 }
 
@@ -1026,16 +1025,33 @@ async function initKokoro() {
   return _kokoroTTS;
 }
 
+function stopSpeak() {
+  if (S.activeAudio) {
+    try { S.activeAudio.pause(); } catch(e) {}
+    if (S.activeAudio._url) { try { URL.revokeObjectURL(S.activeAudio._url); } catch(e) {} }
+    S.activeAudio = null;
+  }
+  if ('speechSynthesis' in window) {
+    try { speechSynthesis.cancel(); } catch(e) {}
+  }
+  if (S._ttsKeepAlive) { clearInterval(S._ttsKeepAlive); S._ttsKeepAlive = null; }
+  stopSiBars();
+}
+
 async function speak(text) {
   if (!text) return;
   let clean = text.replace(/<[^>]+>/g, '');
-  clean = clean.replace(/[*_#`~]/g, ''); // strip Markdown symbols
-  clean = clean.replace(/\[(.*?)\]\(.*?\)/g, '$1'); // replace markdown links with just text
-  clean = clean.substring(0, 2000);
+  clean = clean.replace(/[*_#`~]/g, '');
+  clean = clean.replace(/\[(.*?)\]\(.*?\)/g, '$1');
+  clean = clean.substring(0, 2000).trim();
+  if (!clean) return;
   const lang = LANGS[currentLang] || LANGS.en;
+
+  // Cancel anything currently playing before starting new audio
+  stopSpeak();
   startSiBars();
 
-  // Kokoro for EN/ES (supported languages)
+  // Kokoro for EN/ES
   if (S.kokoroEnabled && lang.kokoroSupported) {
     try {
       const tts = await initKokoro();
@@ -1046,31 +1062,78 @@ async function speak(text) {
         const blob = new Blob([wav], { type: 'audio/wav' });
         const url = URL.createObjectURL(blob);
         const a = new Audio(url);
+        a._url = url;
         S.activeAudio = a;
-        a.onended = () => { stopSiBars(); URL.revokeObjectURL(url); };
-        a.play();
-        return;
+        return await new Promise((resolve) => {
+          const done = () => {
+            if (S.activeAudio === a) S.activeAudio = null;
+            try { URL.revokeObjectURL(url); } catch(e) {}
+            stopSiBars();
+            resolve();
+          };
+          a.onended = done;
+          a.onerror = (e) => { console.warn('Kokoro audio error:', e); done(); };
+          a.play().catch(err => { console.warn('Kokoro play() rejected:', err); done(); });
+        });
       }
     } catch(e) { console.warn('Kokoro speak error:', e); }
   }
 
-  // Browser TTS fallback — supports Arabic (ar-SA) and Urdu (ur-PK)
-  if ('speechSynthesis' in window) {
-    // Ensure voices are loaded
-    let voices = speechSynthesis.getVoices();
-    if (!voices.length) {
-      await new Promise(r => { speechSynthesis.onvoiceschanged = r; setTimeout(r, 1000); });
-      voices = speechSynthesis.getVoices();
+  // Browser TTS fallback — chunk by sentence to dodge Chrome's ~200-char silent-cutoff bug
+  if (!('speechSynthesis' in window)) { stopSiBars(); return; }
+
+  let voices = speechSynthesis.getVoices();
+  if (!voices.length) {
+    await new Promise(r => {
+      let done = false;
+      const finish = () => { if (!done) { done = true; r(); } };
+      speechSynthesis.onvoiceschanged = finish;
+      setTimeout(finish, 1000);
+    });
+    voices = speechSynthesis.getVoices();
+  }
+
+  const match = voices.find(v => v.lang === lang.voiceLang)
+    || voices.find(v => v.lang.startsWith(lang.code));
+  const rate = (currentLang === 'ar' || currentLang === 'ur') ? 0.85 : 0.95;
+
+  const chunks = clean.match(/[^.!?،۔]+[.!?،۔]?\s*/g) || [clean];
+  const merged = [];
+  let buf = '';
+  for (const c of chunks) {
+    if ((buf + c).length > 180) { if (buf) merged.push(buf); buf = c; }
+    else buf += c;
+  }
+  if (buf) merged.push(buf);
+
+  // Chrome stops speaking after ~15s of an utterance; pause/resume keeps it alive
+  if (S._ttsKeepAlive) clearInterval(S._ttsKeepAlive);
+  S._ttsKeepAlive = setInterval(() => {
+    if (!speechSynthesis.speaking) return;
+    try { speechSynthesis.pause(); speechSynthesis.resume(); } catch(e) {}
+  }, 10000);
+
+  try {
+    for (const part of merged) {
+      await new Promise((resolve) => {
+        const u = new SpeechSynthesisUtterance(part);
+        u.lang = lang.voiceLang;
+        u.rate = rate;
+        if (match) u.voice = match;
+        let settled = false;
+        const done = () => { if (!settled) { settled = true; resolve(); } };
+        u.onend = done;
+        u.onerror = done;
+        speechSynthesis.speak(u);
+        // Safety: if no event fires (rare browser hang), bail after generous timeout
+        setTimeout(done, Math.max(8000, part.length * 120));
+      });
+      if (!S._ttsKeepAlive) break; // stopSpeak() was called mid-playback
     }
-    const u = new SpeechSynthesisUtterance(clean);
-    u.lang = lang.voiceLang;
-    u.rate = currentLang === 'ar' || currentLang === 'ur' ? 0.85 : 0.95;
-    const match = voices.find(v => v.lang === lang.voiceLang)
-      || voices.find(v => v.lang.startsWith(lang.code));
-    if (match) u.voice = match;
-    u.onend = () => stopSiBars();
-    speechSynthesis.speak(u);
-  } else { stopSiBars(); }
+  } finally {
+    if (S._ttsKeepAlive) { clearInterval(S._ttsKeepAlive); S._ttsKeepAlive = null; }
+    stopSiBars();
+  }
 }
 
 // ================================================================
@@ -1113,7 +1176,7 @@ async function runPipeline() {
 ${S.lang}Layer 1 — Context Analysis.
 Topic: "${S.topic}". Position: "${S.position}".
 Objectively map the debate. Identify 4-5 key factors. Surface hidden assumptions.
-Do NOT take a position. ${S.depth} words.`);
+Do NOT take a position. Strict maximum: ${S.depth} words. Do not exceed. No preamble or filler.`);
 
     // L2 ARGUMENTS
     setTW('Layer 2 — Building your strongest arguments...');
@@ -1123,7 +1186,7 @@ ${S.lang}Layer 2 — Argument Builder.
 Topic: "${S.topic}". Defend: "${S.position}".
 Context from Layer 1: ${S.layers[1]||''}
 3 distinct evidence-backed arguments with claim, evidence, and example.
-${S.depth} words.`);
+Strict maximum: ${S.depth} words total. Do not exceed. No preamble or filler.`);
 
     // SOCRATIC
     if (S.socraticOn) {
@@ -1141,7 +1204,7 @@ Topic: "${S.topic}". Challenge: "${S.position}".
 Prior context (L1): ${S.layers[1]||''}
 Arguments made (L2): ${S.layers[2]||''}
 ${S.socraticAnswers.length?`User reinforced position: ${S.socraticAnswers.join(' | ')}`:''}
-3 genuinely compelling counter-arguments. No strawmen. ${S.depth} words.`);
+3 genuinely compelling counter-arguments. No strawmen. Strict maximum: ${S.depth} words total. Do not exceed. No preamble or filler.`);
 
     // L4 CRITIQUE
     setTW('Layer 4 — Auditing weaknesses in your case...');
@@ -1151,7 +1214,7 @@ ${S.lang}Layer 4 — Self-Critique.
 Topic: "${S.topic}". Position: "${S.position}".
 Original arguments (L2): ${S.layers[2]||''}
 Counter-arguments faced (L3): ${S.layers[3]||''}
-3-4 honest weaknesses with improvement suggestions. ${S.depth} words.`);
+3-4 honest weaknesses with improvement suggestions. Strict maximum: ${S.depth} words total. Do not exceed. No preamble or filler.`);
 
     // L5 FINAL
     setTW('Layer 5 — Loffi delivers the final verdict...');
@@ -1165,7 +1228,7 @@ Arguments (L2): ${S.layers[2]||''}
 Counters (L3): ${S.layers[3]||''}
 Critique (L4): ${S.layers[4]||''}
 Synthesise all layers. State conditions under which each side wins.
-End with a bold "FINAL VERDICT:" from Loffi. ${S.depth} words.`);
+End with a bold "FINAL VERDICT:" from Loffi. Strict maximum: ${S.depth} words total. Do not exceed. No preamble or filler.`);
 
     // SCORE
     setTW('Scoring the debate...');
@@ -1231,7 +1294,7 @@ async function runLayer(n, title, sub, color, prompt) {
   const t0 = Date.now();
   let text='', inTok=0, outTok=0;
   try {
-    const r = await apiWithTokens(prompt, 1400);
+    const r = await apiWithTokens(prompt, depthTokens(S.depth));
     text=r.text; inTok=r.in; outTok=r.out;
   } catch(e) { text=`[Layer ${n} error: ${e.message}]`; }
 
@@ -1563,8 +1626,8 @@ async function runAIA() {
     const lEx=addExchange(transcript,'lufia','Loffi','...');
     const lp=`You are Loffi, elite AI debate host. Arguing: "${lufiaSide}" on "${topic}".
 Debate history: ${history.map(h=>`${h.who}: ${h.text}`).join('\n')||'Opening round.'}
-${r===1?'Opening':'Round '+r} argument. Sharp, specific, evidence-based. ${depth} words max. No preamble.`;
-    const lt=await api(lp,550);
+${r===1?'Opening':'Round '+r} argument. Sharp, specific, evidence-based. Strict maximum: ${depth} words. Do not exceed. No preamble.`;
+    const lt=await api(lp,depthTokens(depth));
     history.push({who:'Loffi',text:lt});
     lEx.querySelector('.exchange-text').textContent=lt;
     await delay(500);
@@ -1574,8 +1637,8 @@ ${r===1?'Opening':'Round '+r} argument. Sharp, specific, evidence-based. ${depth
     const oEx=addExchange(transcript,'opponent',oppPersona,'...');
     const op=`You are a ${oppPersona}. Arguing: "${oppSide}" on "${topic}".
 History: ${history.map(h=>`${h.who}: ${h.text}`).join('\n')}
-Counter Loffi directly. ${depth} words max. No preamble.`;
-    const ot=await api(op,550);
+Counter Loffi directly. Strict maximum: ${depth} words. Do not exceed. No preamble.`;
+    const ot=await api(op,depthTokens(depth));
     history.push({who:'Opponent',text:ot});
     oEx.querySelector('.exchange-text').textContent=ot;
     await delay(400);
@@ -1753,44 +1816,6 @@ JSON only:
 }
 
 // ================================================================
-// AVATAR (canvas)
-// ================================================================
-function initAvatar() {
-  const c=document.getElementById('avatar-canvas');
-  const ctx=c.getContext('2d');
-  let f=0;
-  function draw(){
-    f++;
-    ctx.clearRect(0,0,100,100);
-    // Paper background
-    ctx.fillStyle='#faf8f3';ctx.fillRect(0,0,100,100);
-    // Face (editorial illustration style — stark B&W)
-    ctx.fillStyle='#0a0a08';
-    ctx.beginPath();ctx.arc(50,50,38,0,Math.PI*2);ctx.fill();
-    // White inner face
-    ctx.fillStyle='#faf8f3';
-    ctx.beginPath();ctx.arc(50,50,34,0,Math.PI*2);ctx.fill();
-    // Eyes
-    const blink=f%150<5?Math.sin(f%5*Math.PI/5):0;
-    [35,65].forEach(x=>{
-      ctx.fillStyle='#0a0a08';
-      ctx.beginPath();ctx.ellipse(x,45,4,Math.max(1,5*(1-blink)),0,0,Math.PI*2);ctx.fill();
-    });
-    // Mouth
-    const mh=S.isSpeaking?Math.abs(Math.sin(f*.2))*6+2:2;
-    ctx.fillStyle='#0a0a08';
-    ctx.beginPath();ctx.ellipse(50,62,9,mh,0,0,Math.PI);ctx.fill();
-    // "LUFIALLOLA" text stamp
-    ctx.fillStyle='#c41230';
-    ctx.font='bold 7px "Barlow Condensed",sans-serif';
-    ctx.textAlign='center';
-    ctx.fillText('LUFIALLOLA',50,93);
-    requestAnimationFrame(draw);
-  }
-  draw();
-}
-
-// ================================================================
 // WAVEFORM + SI BARS
 // ================================================================
 function startSiBars() { /* audio indicator — reserved for Kokoro */ }
@@ -1913,11 +1938,17 @@ function copyTxt(btn,text) { navigator.clipboard.writeText(text||'').then(()=>{b
 function playLayer(btn, n) {
   if (!S.kokoroEnabled) { telegram('Enable Kokoro TTS in settings to use Read Aloud', 'err'); return; }
   if (btn.classList.contains('playing')) {
-    if (S.activeAudio) { S.activeAudio.pause(); S.activeAudio = null; }
+    stopSpeak();
     btn.classList.remove('playing'); btn.textContent = 'Read Aloud'; return;
   }
+  // Reset any other Read Aloud button that's stuck in 'playing'
+  document.querySelectorAll('.playing').forEach(b => {
+    b.classList.remove('playing');
+    if (b !== btn) b.textContent = 'Read Aloud';
+  });
   btn.classList.add('playing'); btn.textContent = '■ Stop';
-  speak(S.layers[n] || '').then(() => { btn.classList.remove('playing'); btn.textContent = 'Read Aloud'; });
+  const reset = () => { btn.classList.remove('playing'); btn.textContent = 'Read Aloud'; };
+  speak(S.layers[n] || '').then(reset, reset);
 }
 
 function delay(ms){return new Promise(r=>setTimeout(r,ms));}
@@ -1952,7 +1983,13 @@ function clearAll(){
 // ================================================================
 // API — proxied through server.js (key in .env, never in browser)
 // ================================================================
-async function api(prompt, maxTokens=1200) {
+// Map depth range like "130-150" → token cap (~words × 1.6 + 120 buffer)
+function depthTokens(depth) {
+  const max = parseInt(String(depth || '130-150').split('-').pop(), 10) || 150;
+  return Math.max(120, Math.round(max * 1.6) + 120);
+}
+
+async function api(prompt, maxTokens=800) {
   const r = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1963,7 +2000,7 @@ async function api(prompt, maxTokens=1200) {
   return d.content?.[0]?.text || '';
 }
 
-async function apiWithTokens(prompt, maxTokens=1200) {
+async function apiWithTokens(prompt, maxTokens=800) {
   const r = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1999,7 +2036,6 @@ window.setHostStatus = setHostStatus;
 window.toggleMic = toggleMic;
 window.startMic = startMic;
 window.stopMic = stopMic;
-window.initAvatar = initAvatar;
 window.startSiBars = startSiBars;
 window.stopSiBars = stopSiBars;
 window.startWave = startWave;
