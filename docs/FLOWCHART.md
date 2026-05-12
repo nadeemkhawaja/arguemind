@@ -13,7 +13,7 @@ ArgueMind runs a sequential 7-node reasoning pipeline. Each node receives all pr
                        ▼
 ┌─────────────────────────────────────────────────────┐
 │         LAYER 0 — FALLACY SCAN          [TELEMETRY] │
-│  SCIPAB: S — Situation detection                      │
+│  PSIPAB: P — Problem detection                      │
 │  Detect logical fallacies in topic framing          │
 │  Output: JSON {fallacies:[...]}                     │
 └──────────────────────┬──────────────────────────────┘
@@ -21,7 +21,7 @@ ArgueMind runs a sequential 7-node reasoning pipeline. Each node receives all pr
                        ▼
 ┌─────────────────────────────────────────────────────┐
 │         LAYER 1 — CONTEXT ANALYSIS      [TELEMETRY] │
-│  SCIPAB: S — Situation mapping                        │
+│  PSIPAB: P — Problem mapping                        │
 │  Objective landscape. 4-5 key factors.              │
 │  No position taken.                                 │
 └──────────────────────┬──────────────────────────────┘
@@ -29,7 +29,7 @@ ArgueMind runs a sequential 7-node reasoning pipeline. Each node receives all pr
                        ▼
 ┌─────────────────────────────────────────────────────┐
 │         LAYER 2 — ARGUMENT BUILDER      [TELEMETRY] │
-│  SCIPAB: C — Complication                               │
+│  PSIPAB: S — Solution                               │
 │  3 evidence-backed arguments                        │
 │  Claim + Evidence + Example per argument            │
 └──────────────────────┬──────────────────────────────┘
@@ -49,7 +49,7 @@ ArgueMind runs a sequential 7-node reasoning pipeline. Each node receives all pr
                     ▼
 ┌─────────────────────────────────────────────────────┐
 │        LAYER 3 — COUNTER-ARGUMENT        [TELEMETRY]│
-│  SCIPAB: I — Implementation                         │
+│  PSIPAB: I — Implementation                         │
 │  3 compelling counter-arguments                     │
 │  Each directly addresses an L2 claim               │
 └──────────────────────┬──────────────────────────────┘
@@ -57,7 +57,7 @@ ArgueMind runs a sequential 7-node reasoning pipeline. Each node receives all pr
                        ▼
 ┌─────────────────────────────────────────────────────┐
 │         LAYER 4 — SELF-CRITIQUE         [TELEMETRY] │
-│  SCIPAB: P — Position                                  │
+│  PSIPAB: P — Proof                                  │
 │  3-4 honest weaknesses in L2 arguments             │
 │  Improvement suggestion per weakness                │
 └──────────────────────┬──────────────────────────────┘
@@ -65,7 +65,7 @@ ArgueMind runs a sequential 7-node reasoning pipeline. Each node receives all pr
                        ▼
 ┌─────────────────────────────────────────────────────┐
 │     LAYER 5 — FINAL STRATEGY & VERDICT  [TELEMETRY] │
-│  SCIPAB: A — Action + B — Benefit                   │
+│  PSIPAB: A — Action + B — Benefit                   │
 │  Synthesis of all layers                            │
 │  Conditions for each side winning                   │
 │  FINAL VERDICT from Loffi                          │
@@ -74,7 +74,7 @@ ArgueMind runs a sequential 7-node reasoning pipeline. Each node receives all pr
                 ▼                  ▼
 ┌──────────────────┐  ┌────────────────────────────────┐
 │   SCORE CARD     │  │     COACHING FEEDBACK          │
-│  SCIPAB: Benefit │  │  SCIPAB: Benefit               │
+│  PSIPAB: Benefit │  │  PSIPAB: Benefit               │
 │  4 metrics 0-100 │  │  Strengths · Weaknesses        │
 │  Overall score   │  │  Style profile · Exercise      │
 └──────────────────┘  └────────────────────────────────┘

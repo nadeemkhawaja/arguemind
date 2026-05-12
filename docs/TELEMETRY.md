@@ -100,7 +100,7 @@ Each completed layer article card displays:
 
 ```
 Layer 2 — Argument Builder                            PRINTED
-C — Complication · SCIPAB Framework
+S — Solution · PSIPAB Framework
 Three evidence-backed arguments in your defence
 By Loffi · ESPN · 4.2s · eff: 0.68
 ────────────────────────────────────────────────────
