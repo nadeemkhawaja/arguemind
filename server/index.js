@@ -24,13 +24,43 @@ function lanAddresses() {
   return out;
 }
 
+// Pick the most likely "real" LAN IP:
+// 1) prefer en0 (macOS Wi-Fi/primary), then en1, eth0, wlan0
+// 2) skip docker/vmnet/utun/bridge
+// 3) prefer RFC1918 ranges (192.168/10/172.16-31)
+function primaryIp() {
+  const all = lanAddresses();
+  const skip = /^(docker|vmnet|utun|bridge|veth|br-|tun|tap)/i;
+  const preferred = ['en0', 'en1', 'eth0', 'wlan0'];
+  const filtered = all.filter((i) => !skip.test(i.name));
+  for (const name of preferred) {
+    const hit = filtered.find((i) => i.name === name);
+    if (hit) return hit;
+  }
+  const priv = filtered.find((i) =>
+    /^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\./.test(i.address),
+  );
+  return priv || filtered[0] || null;
+}
+
 const server = app.listen(REQUESTED_PORT, HOST, () => {
   const { port } = server.address();
-  try { writeFileSync(PORT_FILE, String(port)); } catch {}
+  const primary = primaryIp();
+  try {
+    writeFileSync(
+      PORT_FILE,
+      JSON.stringify({ port, ip: primary?.address || '127.0.0.1' }),
+    );
+  } catch {}
   console.log(`\n  ✅  Express server listening on ${HOST}:${port}`);
+  if (primary) {
+    console.log(`  🌐  Primary IP detected: ${primary.address} (${primary.name})`);
+    console.log(`  →  http://${primary.address}:${port}`);
+  }
   console.log(`  →  http://localhost:${port}`);
-  for (const { name, address } of lanAddresses()) {
-    console.log(`  →  http://${address}:${port}   (${name})`);
+  const others = lanAddresses().filter((i) => i.address !== primary?.address);
+  for (const { name, address } of others) {
+    console.log(`     also: http://${address}:${port}   (${name})`);
   }
   console.log('  🔑  API key loaded from .env\n');
 });

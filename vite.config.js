@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 
 const backendPort = process.env.BACKEND_PORT || '3000';
+const backendIp = process.env.BACKEND_IP || '127.0.0.1';
 
 export default defineConfig({
   server: {
@@ -8,7 +9,7 @@ export default defineConfig({
     strictPort: false,   // if chosen port is busy, pick another
     proxy: {
       '/api': {
-        target: `http://127.0.0.1:${backendPort}`,
+        target: `http://${backendIp}:${backendPort}`,
         changeOrigin: true,
       },
     },
