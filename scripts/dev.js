@@ -29,26 +29,32 @@ const server = spawn('node', ['server/index.js'], {
 children.push(server);
 server.on('exit', (code) => shutdown(code ?? 0));
 
-async function waitForPort(timeoutMs = 15000) {
+async function waitForBackend(timeoutMs = 15000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (existsSync(PORT_FILE)) {
-      const v = readFileSync(PORT_FILE, 'utf8').trim();
-      if (v) return Number(v);
+      const raw = readFileSync(PORT_FILE, 'utf8').trim();
+      if (raw) {
+        try { return JSON.parse(raw); } catch { return { port: Number(raw), ip: '127.0.0.1' }; }
+      }
     }
     await new Promise((r) => setTimeout(r, 100));
   }
   throw new Error('Timed out waiting for backend to report its port');
 }
 
-const backendPort = await waitForPort();
-console.log(`  🔗  Vite will proxy /api → http://127.0.0.1:${backendPort}`);
+const { port: backendPort, ip: backendIp } = await waitForBackend();
+console.log(`  🔗  Vite will proxy /api → http://${backendIp}:${backendPort}`);
 
 const viteBin = path.join(ROOT, 'node_modules', '.bin', 'vite');
 const vite = spawn(viteBin, ['--host'], {
   cwd: ROOT,
   stdio: 'inherit',
-  env: { ...process.env, BACKEND_PORT: String(backendPort) },
+  env: {
+    ...process.env,
+    BACKEND_PORT: String(backendPort),
+    BACKEND_IP: backendIp,
+  },
 });
 children.push(vite);
 vite.on('exit', (code) => shutdown(code ?? 0));
