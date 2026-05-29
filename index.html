@@ -733,9 +733,19 @@
       </div>
 
       <div>
-        <label style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);">Brave Search API Key (optional — Deep web search)</label>
-        <input id="set-search-key" type="password" placeholder="Paste your Brave Search key (BSA...)" style="width:100%;margin-top:4px;font-size:12px;padding:6px 8px;border:1px solid var(--rule-heavy);background:var(--paper);font-family:var(--mono);">
-        <div style="font-family:var(--mono);font-size:9px;color:var(--ink4);margin-top:3px;">Enables 🔎 Deep web search. Get a free key at <strong>brave.com/search/api</strong> (2,000 queries/mo free). Stored only in your browser.</div>
+        <label style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);">Web Search (optional — 🔎 Deep web search)</label>
+        <select id="set-search-provider" style="width:100%;margin-top:4px;font-size:12px;padding:6px 8px;border:1px solid var(--rule-heavy);background:var(--paper);font-family:var(--mono);">
+          <option value="brave">Brave Search (default)</option>
+          <option value="google">Google Programmable Search</option>
+        </select>
+        <input id="set-search-key" type="password" placeholder="Brave Search key (BSA...)" style="width:100%;margin-top:6px;font-size:12px;padding:6px 8px;border:1px solid var(--rule-heavy);background:var(--paper);font-family:var(--mono);">
+        <input id="set-google-key" type="password" placeholder="Google API key (Google provider)" style="width:100%;margin-top:6px;font-size:12px;padding:6px 8px;border:1px solid var(--rule-heavy);background:var(--paper);font-family:var(--mono);">
+        <input id="set-google-cx" type="text" placeholder="Google Search Engine ID — cx (Google provider)" style="width:100%;margin-top:6px;font-size:12px;padding:6px 8px;border:1px solid var(--rule-heavy);background:var(--paper);font-family:var(--mono);">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--ink4);margin-top:3px;line-height:1.7;">
+          <strong>Brave</strong>: free key at brave.com/search/api (2,000/mo).<br>
+          <strong>Google</strong>: API key at console.cloud.google.com + a Search Engine ID (cx) at programmablesearchengine.google.com (100 free/day).<br>
+          Keys stored only in your browser. A server <code>BRAVE_API_KEY</code> / <code>GOOGLE_API_KEY</code> + <code>GOOGLE_CX</code> can also be set for all sessions.
+        </div>
       </div>
 
       <div style="background:var(--paper2);border:1px solid var(--rule);padding:10px;font-family:var(--mono);font-size:9px;color:var(--ink3);line-height:1.7;">
