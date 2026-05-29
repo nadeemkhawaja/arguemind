@@ -1019,8 +1019,11 @@ function toggleFeature(f) {
   } else if (f==='websearch') {
     S.webSearch = !S.webSearch;
     setToggle('tog-websearch', S.webSearch);
-    if (S.webSearch && !getApiSettings().searchKey) {
-      telegram('Add a Brave Search API key in ⚙ Settings to enable web search', 'err');
+    if (S.webSearch) {
+      const st = getApiSettings();
+      const prov = st.searchProvider || 'brave';
+      const hasKey = prov === 'google' ? (st.googleKey && st.googleCx) : st.searchKey;
+      if (!hasKey) telegram(`Add your ${prov==='google'?'Google':'Brave'} Search key in ⚙ Settings to enable web search`, 'err');
     }
   }
 }
@@ -2128,10 +2131,14 @@ async function _apiFetch(prompt, maxTokens, useSecondary) {
 // back to a BRAVE_API_KEY env var. Returns [{title,url,description}].
 async function webSearchQuery(query, count = 5) {
   const s = getApiSettings();
-  const key = s.searchKey || '';
+  const provider = s.searchProvider || 'brave';
+  const key = provider === 'google' ? (s.googleKey || '') : (s.searchKey || '');
+  const headers = { 'Content-Type': 'application/json', 'x-search-provider': provider };
+  if (key) headers['x-search-key'] = key;
+  if (provider === 'google' && s.googleCx) headers['x-search-cx'] = s.googleCx;
   const r = await fetch('/api/search', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(key ? { 'x-search-key': key } : {}) },
+    headers,
     body: JSON.stringify({ q: query, count })
   });
   if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || `Search error ${r.status}`); }
@@ -2150,6 +2157,12 @@ function openSettings() {
   document.getElementById('set-secondary-model').value = s.secondaryModel || '';
   const sk = document.getElementById('set-search-key');
   if (sk) sk.value = s.searchKey || '';
+  const sp = document.getElementById('set-search-provider');
+  if (sp) sp.value = s.searchProvider || 'brave';
+  const gk = document.getElementById('set-google-key');
+  if (gk) gk.value = s.googleKey || '';
+  const gc = document.getElementById('set-google-cx');
+  if (gc) gc.value = s.googleCx || '';
   updateSettingsHints();
   document.getElementById('settings-modal').style.display='flex';
 }
@@ -2162,7 +2175,10 @@ function saveSettings() {
     apiKey: document.getElementById('set-api-key').value.trim(),
     primaryModel: document.getElementById('set-primary-model').value.trim(),
     secondaryModel: document.getElementById('set-secondary-model').value.trim(),
+    searchProvider: document.getElementById('set-search-provider')?.value || 'brave',
     searchKey: (document.getElementById('set-search-key')?.value || '').trim(),
+    googleKey: (document.getElementById('set-google-key')?.value || '').trim(),
+    googleCx: (document.getElementById('set-google-cx')?.value || '').trim(),
   };
   localStorage.setItem('am_settings', JSON.stringify(s));
   closeSettings();
