@@ -75,6 +75,25 @@ app.post('/api/claude', (req, res) => {
   proxy.end();
 });
 
+// ── Google AI Studio proxy ──────────────────────────────────
+app.post('/api/gemini', async (req, res) => {
+  if (!req.body || !req.body.messages) return res.status(400).json({ error: 'Missing messages' });
+  const key = process.env.GOOGLE_AI_KEY || '';
+  if (!key) return res.status(500).json({ error: 'GOOGLE_AI_KEY not set in .env' });
+  const model = req.body.model || 'gemini-2.0-flash';
+  try {
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({ model, max_tokens: req.body.max_tokens || 1200, messages: req.body.messages }),
+    });
+    const text = await r.text();
+    res.status(r.status).set('Content-Type', 'application/json').send(text);
+  } catch (e) {
+    res.status(502).json({ error: 'Gemini proxy error: ' + e.message });
+  }
+});
+
 // ── Web Search proxy (Brave or Google) ─────────────────────
 app.post('/api/search', async (req, res) => {
   const query = (req.body && req.body.q ? String(req.body.q) : '').trim();
