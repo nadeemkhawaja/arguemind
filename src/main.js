@@ -2056,18 +2056,17 @@ function getPrimaryModel() {
   const provider = s.provider || 'anthropic';
   if (provider === 'anthropic') return s.primaryModel || 'claude-sonnet-4-20250514';
   if (provider === 'openrouter') return s.primaryModel || 'anthropic/claude-sonnet-4';
+  if (provider === 'google') return s.primaryModel || 'gemini-2.0-flash';
   return s.primaryModel || 'meta-llama/llama-3.3-70b-instruct:free';
 }
 
 function getSecondaryModel() {
   const s = getApiSettings();
   const provider = s.provider || 'anthropic';
-  // Migrate the stale invalid Haiku id older builds shipped as the default.
-  // There is no "Haiku 4.0" — anything matching claude-haiku-4-<date> (but not
-  // the valid claude-haiku-4-5-*) is bogus and must fall back to the default.
   if (/^claude-haiku-4-(?!5)/.test(s.secondaryModel || '')) s.secondaryModel = '';
   if (provider === 'anthropic') return s.secondaryModel || 'claude-haiku-4-5-20251001';
   if (provider === 'openrouter') return s.secondaryModel || 'google/gemma-3-27b-it:free';
+  if (provider === 'google') return s.secondaryModel || 'gemini-2.0-flash';
   return s.secondaryModel || 'google/gemma-3-27b-it:free';
 }
 
@@ -2096,8 +2095,7 @@ async function _apiFetch(prompt, maxTokens, useSecondary) {
   const userKey = s.apiKey || '';
 
   if (provider === 'openrouter' || provider === 'free') {
-    // Call OpenRouter directly from browser (they support CORS)
-    const key = userKey || (provider === 'free' ? '' : '');
+    const key = userKey || '';
     if (!key && provider === 'openrouter') throw new Error('OpenRouter API key not set — open Settings ⚙');
     return fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -2107,15 +2105,20 @@ async function _apiFetch(prompt, maxTokens, useSecondary) {
         'HTTP-Referer': window.location.origin,
         'X-Title': 'ArgueMind'
       },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
     });
   }
 
-  // Default: Anthropic via server proxy (key in .env or user-supplied in header)
+  if (provider === 'google') {
+    // Google AI Studio via server proxy — key stays server-side in GOOGLE_AI_KEY
+    return fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
+    });
+  }
+
+  // Default: Anthropic via server proxy
   return fetch('/api/claude', {
     method: 'POST',
     headers: {
@@ -2198,6 +2201,7 @@ function updateSettingsHints() {
     anthropic: { key:'sk-ant-...  (get from console.anthropic.com)', p:'claude-sonnet-4-20250514', s:'claude-haiku-4-5-20251001' },
     openrouter: { key:'sk-or-...  (get from openrouter.ai/keys)', p:'anthropic/claude-sonnet-4', s:'google/gemma-3-27b-it:free' },
     free: { key:'sk-or-...  (optional — free models on OpenRouter)', p:'meta-llama/llama-3.3-70b-instruct:free', s:'google/gemma-3-27b-it:free' },
+    google: { key:'No key needed — GOOGLE_AI_KEY is set server-side', p:'gemini-2.0-flash', s:'gemini-2.0-flash' },
   };
   const h = hints[p] || hints.anthropic;
   document.getElementById('set-key-hint').textContent = h.key;
@@ -2209,9 +2213,9 @@ function updateSettingsBadge() {
   const el = document.getElementById('settings-badge');
   if (el) {
     const p = s.provider || 'anthropic';
-    const labels = { anthropic:'Claude', openrouter:'OpenRouter', free:'Free' };
+    const labels = { anthropic:'Claude', openrouter:'OpenRouter', free:'Free', google:'Gemini' };
     el.textContent = labels[p] || 'Claude';
-    el.style.background = p === 'anthropic' ? '#c41230' : p === 'openrouter' ? '#5b3dbd' : '#2e7d32';
+    el.style.background = p === 'anthropic' ? '#c41230' : p === 'openrouter' ? '#5b3dbd' : p === 'google' ? '#1a73e8' : '#2e7d32';
   }
 }
 
