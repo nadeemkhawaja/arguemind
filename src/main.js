@@ -469,6 +469,8 @@ const S = {
   currentCat:'sports',
   refDocText: '',   // uploaded reference document text
   refDocName: '',   // uploaded file name
+  webSearch: false, // ground layers in live Brave web search results
+  searchResults: [],// last web-search results [{title,url,description}]
 };
 
 
@@ -905,11 +907,8 @@ function renderCat(catId) {
   // Auto-render first sub
   renderSub(catId, cat.subs[0].id);
 
-  // Sync source quick-select to first sub's sources
-  const ssq = document.getElementById('sel-source-quick');
-  ssq.innerHTML = cat.subs[0].sources.map(s =>
-    `<option value="${s}">${s.split(' (')[0]}</option>`).join('');
-  S.source = cat.subs[0].sources[0];
+  // Offer the first sub's sources as editable suggestions
+  setSourceSuggestions(cat.subs[0].sources);
 
   // Source footnote
   const oldFn = document.getElementById('source-footnote');
@@ -934,11 +933,8 @@ function renderSub(catId, subId) {
   document.querySelectorAll('.sub-btn').forEach(b =>
     b.classList.toggle('sub-active', b.dataset.sub === subId));
 
-  // Update sources
-  const ssq = document.getElementById('sel-source-quick');
-  ssq.innerHTML = sub.sources.map(s =>
-    `<option value="${s}">${s.split(' (')[0]}</option>`).join('');
-  S.source = sub.sources[0];
+  // Update source suggestions
+  setSourceSuggestions(sub.sources);
   const fn = document.getElementById('source-footnote');
   if (fn) fn.innerHTML = `<strong>Sources for ${sub.label}:</strong> ${sub.sources.join(' &nbsp;·&nbsp; ')}`;
 
@@ -952,6 +948,15 @@ function renderSub(catId, subId) {
       <div class="tc-sub">${t.sub}</div>
       <div class="tc-check">✓</div>
     </div>`).join('');
+}
+
+// Fill the Knowledge Source datalist with editable suggestions and default
+// the free-text input to the first suggestion (users can type anything).
+function setSourceSuggestions(sources) {
+  const dl = document.getElementById('source-suggestions');
+  if (dl) dl.innerHTML = (sources || []).map(s => `<option value="${s}">`).join('');
+  const ssq = document.getElementById('sel-source-quick');
+  if (ssq && sources && sources.length) { ssq.value = sources[0]; S.source = sources[0]; }
 }
 
 function selectTopic(catId, subId, i) {
@@ -1011,6 +1016,12 @@ function toggleFeature(f) {
     setToggle('tog-video', S.videoOn);
     document.getElementById('avatar-panel').style.display = S.videoOn ? 'block' : 'none';
     if (S.videoOn) initAvatar();
+  } else if (f==='websearch') {
+    S.webSearch = !S.webSearch;
+    setToggle('tog-websearch', S.webSearch);
+    if (S.webSearch && !getApiSettings().searchKey) {
+      telegram('Add a Brave Search API key in ⚙ Settings to enable web search', 'err');
+    }
   }
 }
 
@@ -1167,14 +1178,32 @@ async function runPipeline() {
     if (S.fallacyOn) { setTW('Layer 0 — Scanning for logical fallacies...'); await runFallacy(); }
 
     // Build optional reference-doc context string
-    const refCtx = S.refDocText ? `\n\nReference Document ("${S.refDocName}"):\n${S.refDocText.slice(0,3000)}\n` : '';
+    const refCtx = S.refDocText ? `\n\nReference Document ("${S.refDocName}"):\n${S.refDocText.slice(0,6000)}\n` : '';
+
+    // Optional live web-search grounding (Brave) — feeds every layer
+    let searchCtx = '';
+    S.searchResults = [];
+    if (S.webSearch) {
+      try {
+        setTW('Searching the web for live sources...');
+        setTicker('LOFFI SEARCHING THE WEB FOR LIVE SOURCES...');
+        const results = await webSearchQuery(`${S.topic} — ${S.position}`, 6);
+        S.searchResults = results;
+        if (results.length) {
+          searchCtx = '\n\nLive web search results (use these as evidence and cite the [n] index where relevant):\n' +
+            results.map((r,i)=>`[${i+1}] ${r.title} — ${r.url}\n${r.description}`).join('\n') + '\n';
+        }
+      } catch(e) { telegram('Web search failed: '+e.message, 'err'); }
+    }
+    // Combined external context injected into the layers
+    const ctx = refCtx + searchCtx;
 
     // L1 CONTEXT — uses secondary model for independent perspective
     setTW('Layer 1 — Mapping the debate landscape...');
     await runLayer(1,'Context Analysis','Loffi objectively maps the debate','#2c2c28',
       `You are writing as a ${S.persona}. Tone: ${S.tone}. Draw on the expertise of ${S.source}.
 ${S.lang}Layer 1 — Context Analysis.
-Topic: "${S.topic}". Position: "${S.position}".${refCtx}
+Topic: "${S.topic}". Position: "${S.position}".${ctx}
 Objectively map the debate. Identify 4-5 key factors. Surface hidden assumptions.
 Do NOT take a position. ${wc}`, true);
 
@@ -1184,7 +1213,7 @@ Do NOT take a position. ${wc}`, true);
       `You are writing as a ${S.persona}. Tone: ${S.tone}. Draw on the expertise of ${S.source}.
 ${S.lang}Layer 2 — Argument Builder.
 Topic: "${S.topic}". Defend: "${S.position}".
-Context from Layer 1: ${S.layers[1]||''}${refCtx}
+Context from Layer 1: ${S.layers[1]||''}${ctx}
 3 distinct evidence-backed arguments with claim, evidence, and example.
 ${wc}`);
 
@@ -1200,7 +1229,7 @@ ${wc}`);
     await runLayer(3,'Counter-Argument','The strongest case against your position','#5a5a52',
       `You are writing as a ${S.persona}. Tone: ${S.tone}. Draw on the expertise of ${S.source}.
 ${S.lang}Layer 3 — Counter-Argument.
-Topic: "${S.topic}". Challenge: "${S.position}".
+Topic: "${S.topic}". Challenge: "${S.position}".${searchCtx}
 Prior context (L1): ${S.layers[1]||''}
 Arguments made (L2): ${S.layers[2]||''}
 ${S.socraticAnswers.length?`User reinforced position: ${S.socraticAnswers.join(' | ')}`:''}
@@ -1222,7 +1251,7 @@ Counter-arguments faced (L3): ${S.layers[3]||''}
       `You are Loffi, an elite AI debate strategist and host.
 Tone: ${S.tone}. Draw on the expertise of ${S.source}.
 ${S.lang}Layer 5 — Final Strategy & Verdict.
-Topic: "${S.topic}". Position: "${S.position}".
+Topic: "${S.topic}". Position: "${S.position}".${searchCtx}
 Context (L1): ${S.layers[1]||''}
 Arguments (L2): ${S.layers[2]||''}
 Counters (L3): ${S.layers[3]||''}
@@ -1946,6 +1975,7 @@ function exportDebate(fmt) {
   if(fmt==='md'){
     out=`# The Argument Record — ${S.topic}\n**Position:** ${S.position}  \n**Persona:** ${S.persona} | **Tone:** ${S.tone}  \n**Source:** ${S.source}\n\n---\n\n`;
     for(let i=1;i<=5;i++) if(S.layers[i]) out+=`## Layer ${i}: ${titles[i]}\n\n${S.layers[i]}\n\n---\n\n`;
+    if(S.searchResults && S.searchResults.length) out+=`## Web Sources\n\n`+S.searchResults.map((r,i)=>`${i+1}. [${r.title}](${r.url})`).join('\n')+`\n`;
   } else if(fmt==='txt'){
     out=`THE ARGUMENT RECORD — ${S.topic}\nPosition: ${S.position}\n\n`;
     for(let i=1;i<=5;i++) if(S.layers[i]) out+=`=== ${titles[i].toUpperCase()} ===\n${S.layers[i]}\n\n`;
@@ -2092,6 +2122,23 @@ async function _apiFetch(prompt, maxTokens, useSecondary) {
     body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
   });
 }
+
+// ── Web Search (Brave) via serverless proxy ──────────────────
+// Key is supplied per-request from localStorage; the proxy may also fall
+// back to a BRAVE_API_KEY env var. Returns [{title,url,description}].
+async function webSearchQuery(query, count = 5) {
+  const s = getApiSettings();
+  const key = s.searchKey || '';
+  const r = await fetch('/api/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(key ? { 'x-search-key': key } : {}) },
+    body: JSON.stringify({ q: query, count })
+  });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || `Search error ${r.status}`); }
+  const d = await r.json();
+  return Array.isArray(d.results) ? d.results : [];
+}
+
 // ================================================================
 // SETTINGS MODAL
 // ================================================================
@@ -2101,6 +2148,8 @@ function openSettings() {
   document.getElementById('set-api-key').value = s.apiKey || '';
   document.getElementById('set-primary-model').value = s.primaryModel || '';
   document.getElementById('set-secondary-model').value = s.secondaryModel || '';
+  const sk = document.getElementById('set-search-key');
+  if (sk) sk.value = s.searchKey || '';
   updateSettingsHints();
   document.getElementById('settings-modal').style.display='flex';
 }
@@ -2113,6 +2162,7 @@ function saveSettings() {
     apiKey: document.getElementById('set-api-key').value.trim(),
     primaryModel: document.getElementById('set-primary-model').value.trim(),
     secondaryModel: document.getElementById('set-secondary-model').value.trim(),
+    searchKey: (document.getElementById('set-search-key')?.value || '').trim(),
   };
   localStorage.setItem('am_settings', JSON.stringify(s));
   closeSettings();
@@ -2150,31 +2200,83 @@ function updateSettingsBadge() {
 }
 
 // ================================================================
-// REFERENCE DOCUMENT UPLOAD
+// REFERENCE DOCUMENT UPLOAD — supports plain text and real PDF parsing
+// (pdf.js is loaded on demand from CDN). Multiple files are concatenated.
 // ================================================================
-function handleRefDocUpload(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const MAX = 200 * 1024; // 200 KB plain text limit
-  if (file.size > MAX && !file.name.endsWith('.pdf')) {
-    telegram('File too large — keep text files under 200 KB', 'err'); return;
+const PDF_TXT_MAX = 6000;       // chars of PDF text kept per file
+const TEXT_FILE_MAX = 200 * 1024; // 200 KB cap for plain-text files
+let _pdfLib = null;
+
+async function loadPdfLib() {
+  if (_pdfLib) return _pdfLib;
+  const pdfjs = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs';
+  _pdfLib = pdfjs;
+  return pdfjs;
+}
+
+async function extractPdfText(file) {
+  const pdfjs = await loadPdfLib();
+  const buf = await file.arrayBuffer();
+  const doc = await pdfjs.getDocument({ data: buf }).promise;
+  let out = '';
+  for (let p = 1; p <= doc.numPages && out.length < PDF_TXT_MAX; p++) {
+    const page = await doc.getPage(p);
+    const content = await page.getTextContent();
+    out += content.items.map(i => i.str).join(' ') + '\n';
   }
-  S.refDocName = file.name;
-  const reader = new FileReader();
-  reader.onload = e => {
-    S.refDocText = e.target.result;
-    document.getElementById('ref-doc-name').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
-    document.getElementById('ref-doc-clear').style.display='inline-block';
-    telegram(`Reference doc loaded: ${file.name}`, 'ok');
-  };
-  reader.onerror = () => telegram('Could not read file', 'err');
-  reader.readAsText(file);
+  return out.slice(0, PDF_TXT_MAX).trim();
+}
+
+function readTextFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Could not read ' + file.name));
+    reader.readAsText(file);
+  });
+}
+
+async function handleRefDocUpload(input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  const nameEl = document.getElementById('ref-doc-name');
+  if (nameEl) nameEl.textContent = '⏳ Reading…';
+  const chunks = [], names = [];
+  for (const file of files) {
+    try {
+      const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+      if (!isPdf && file.size > TEXT_FILE_MAX) {
+        telegram(`Skipped ${file.name} — text files must be under 200 KB`, 'err');
+        continue;
+      }
+      const text = isPdf ? await extractPdfText(file) : await readTextFile(file);
+      if (!text) { telegram(`No readable text in ${file.name}`, 'err'); continue; }
+      chunks.push(`=== ${file.name} ===\n${text}`);
+      names.push(file.name);
+    } catch (e) {
+      telegram(`Could not read ${file.name}: ${e.message}`, 'err');
+    }
+  }
+  if (!chunks.length) { if (nameEl) nameEl.textContent = 'No file loaded'; return; }
+  // Append to any already-loaded reference text
+  S.refDocText = [S.refDocText, ...chunks].filter(Boolean).join('\n\n');
+  S.refDocName = names.join(', ');
+  if (nameEl) nameEl.textContent = `📎 ${names.join(', ')} (${(S.refDocText.length/1024).toFixed(1)} KB text)`;
+  const clr = document.getElementById('ref-doc-clear');
+  if (clr) clr.style.display = 'inline-block';
+  const badge = document.getElementById('refdoc-badge');
+  if (badge) badge.textContent = String(names.length);
+  telegram(`Loaded ${names.length} reference file${names.length>1?'s':''} ✓`, 'ok');
+  input.value = '';
 }
 function clearRefDoc() {
   S.refDocText = '';
   S.refDocName = '';
   document.getElementById('ref-doc-name').textContent = 'No file loaded';
   document.getElementById('ref-doc-clear').style.display='none';
+  const badge = document.getElementById('refdoc-badge');
+  if (badge) badge.textContent = 'NONE';
   const inp = document.getElementById('ref-doc-input');
   if (inp) inp.value='';
 }

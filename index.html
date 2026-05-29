@@ -210,7 +210,15 @@
         </div>
         <div>
           <div class="cf-label" id="cf-source-label">Knowledge Source</div>
-          <select id="sel-source-quick" onchange="S.source=this.value"></select>
+          <input id="sel-source-quick" list="source-suggestions" autocomplete="off"
+                 placeholder="Type any expert, author or source — or pick a suggestion"
+                 oninput="S.source=this.value"
+                 style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--rule-heavy);background:var(--paper);font-family:var(--mono);">
+          <datalist id="source-suggestions"></datalist>
+          <div class="toggle-item" onclick="toggleFeature('websearch')" style="margin-top:8px;">
+            <div class="toggle-box" id="tog-websearch"></div>
+            <span class="toggle-text">🔎 Deep web search (Brave) — ground arguments in live results</span>
+          </div>
         </div>
       </div>
 
@@ -267,26 +275,25 @@
     <div class="accordion" style="margin-bottom:1rem;">
       <div class="acc-head" onclick="toggleAcc('refdoc')">
         <div class="acc-head-left">
-          📎 Reference Document — Upload a text/PDF file for source context
+          📎 Reference Documents — Upload text or PDF files for source context
           <span class="acc-badge" id="refdoc-badge">NONE</span>
         </div>
         <span class="acc-arrow" id="refdoc-arrow">▼</span>
       </div>
       <div class="acc-body" id="refdoc-body">
         <div style="margin-bottom:10px;font-family:var(--mono);font-size:10px;color:var(--ink3);line-height:1.7;">
-          Upload a plain text or PDF file (e.g., a hadith collection, research paper, or legal document).
-          The first 3,000 characters will be injected as context into all debate layers.<br>
-          <strong>Note:</strong> For PDFs, save as plain text first, or paste content directly in the custom topic box.
+          Upload one or more plain-text or <strong>PDF</strong> files (e.g., a hadith collection, research paper, or legal document).
+          PDFs are parsed in your browser and their text is injected as context into the debate layers. You can add several files — they stack.
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <label style="padding:7px 14px;background:var(--ink);color:#fff;cursor:pointer;font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;">
-            Choose File
-            <input type="file" id="ref-doc-input" accept=".txt,.md,.pdf,.doc,.docx" style="display:none;" onchange="handleRefDocUpload(this)">
+            Choose File(s)
+            <input type="file" id="ref-doc-input" accept=".txt,.md,.pdf" multiple style="display:none;" onchange="handleRefDocUpload(this)">
           </label>
           <span id="ref-doc-name" style="font-family:var(--mono);font-size:10px;color:var(--ink3);">No file loaded</span>
           <button id="ref-doc-clear" onclick="clearRefDoc()" style="display:none;padding:6px 10px;background:var(--paper2);border:1px solid var(--rule-heavy);cursor:pointer;font-family:var(--cond);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--red);">Remove</button>
         </div>
-        <div style="margin-top:8px;font-family:var(--mono);font-size:9px;color:var(--ink4);">Max ~200 KB plain text · Files never leave your device</div>
+        <div style="margin-top:8px;font-family:var(--mono);font-size:9px;color:var(--ink4);">Text files max ~200 KB each · PDFs parsed locally · Files never leave your device</div>
       </div>
     </div>
 
@@ -723,6 +730,12 @@
         <label style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);">Secondary Model (Layers 1,4 — independent perspective)</label>
         <input id="set-secondary-model" type="text" placeholder="Leave blank for default" style="width:100%;margin-top:4px;font-size:12px;padding:6px 8px;border:1px solid var(--rule-heavy);background:var(--paper);font-family:var(--mono);">
         <div style="font-family:var(--mono);font-size:9px;color:var(--ink4);margin-top:3px;">Layer 1 (Context) &amp; Layer 4 (Critique) use the secondary model to provide a truly independent analytical perspective.</div>
+      </div>
+
+      <div>
+        <label style="font-family:var(--cond);font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);">Brave Search API Key (optional — Deep web search)</label>
+        <input id="set-search-key" type="password" placeholder="Paste your Brave Search key (BSA...)" style="width:100%;margin-top:4px;font-size:12px;padding:6px 8px;border:1px solid var(--rule-heavy);background:var(--paper);font-family:var(--mono);">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--ink4);margin-top:3px;">Enables 🔎 Deep web search. Get a free key at <strong>brave.com/search/api</strong> (2,000 queries/mo free). Stored only in your browser.</div>
       </div>
 
       <div style="background:var(--paper2);border:1px solid var(--rule);padding:10px;font-family:var(--mono);font-size:9px;color:var(--ink3);line-height:1.7;">
