@@ -2043,7 +2043,7 @@ function clearAll(){
 }
 
 // ================================================================
-// API — multi-provider: Anthropic (via proxy), OpenRouter, or free
+// API — multi-provider: Anthropic (via proxy) or Google AI Studio (via proxy)
 // Settings stored in localStorage under 'am_settings'
 // ================================================================
 
@@ -2054,27 +2054,23 @@ function getApiSettings() {
 function getPrimaryModel() {
   const s = getApiSettings();
   const provider = s.provider || 'anthropic';
-  if (provider === 'anthropic') return s.primaryModel || 'claude-sonnet-4-20250514';
-  if (provider === 'openrouter') return s.primaryModel || 'anthropic/claude-sonnet-4';
   if (provider === 'google') return s.primaryModel || 'gemini-2.0-flash';
-  return s.primaryModel || 'meta-llama/llama-3.3-70b-instruct:free';
+  return s.primaryModel || 'claude-sonnet-4-20250514';
 }
 
 function getSecondaryModel() {
   const s = getApiSettings();
   const provider = s.provider || 'anthropic';
   if (/^claude-haiku-4-(?!5)/.test(s.secondaryModel || '')) s.secondaryModel = '';
-  if (provider === 'anthropic') return s.secondaryModel || 'claude-haiku-4-5-20251001';
-  if (provider === 'openrouter') return s.secondaryModel || 'google/gemma-3-27b-it:free';
   if (provider === 'google') return s.secondaryModel || 'gemini-2.0-flash';
-  return s.secondaryModel || 'google/gemma-3-27b-it:free';
+  return s.secondaryModel || 'claude-haiku-4-5-20251001';
 }
 
 async function api(prompt, maxTokens=1200, useSecondary=false) {
   const r = await _apiFetch(prompt, maxTokens, useSecondary);
   if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error?.message || e.error || `API error ${r.status}`); }
   const d = await r.json();
-  // Anthropic format: d.content[0].text | OpenRouter/OpenAI format: d.choices[0].message.content
+  // Anthropic format: d.content[0].text | OpenAI-compat format (Google): d.choices[0].message.content
   return d.content?.[0]?.text || d.choices?.[0]?.message?.content || '';
 }
 
@@ -2094,26 +2090,12 @@ async function _apiFetch(prompt, maxTokens, useSecondary) {
   const model = useSecondary ? getSecondaryModel() : getPrimaryModel();
   const userKey = s.apiKey || '';
 
-  if (provider === 'openrouter' || provider === 'free') {
-    const key = userKey || '';
-    if (!key && provider === 'openrouter') throw new Error('OpenRouter API key not set — open Settings ⚙');
-    return fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${key}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'ArgueMind'
-      },
-      body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
-    });
-  }
-
   if (provider === 'google') {
-    // Google AI Studio via server proxy — key stays server-side in GOOGLE_AI_KEY
+    const headers = { 'Content-Type': 'application/json' };
+    if (userKey) headers['x-user-api-key'] = userKey;
     return fetch('/api/gemini', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
     });
   }
@@ -2199,9 +2181,7 @@ function updateSettingsHints() {
   const p = document.getElementById('set-provider').value;
   const hints = {
     anthropic: { key:'sk-ant-...  (get from console.anthropic.com)', p:'claude-sonnet-4-20250514', s:'claude-haiku-4-5-20251001' },
-    openrouter: { key:'sk-or-...  (get from openrouter.ai/keys)', p:'anthropic/claude-sonnet-4', s:'google/gemma-3-27b-it:free' },
-    free: { key:'sk-or-...  (optional — free models on OpenRouter)', p:'meta-llama/llama-3.3-70b-instruct:free', s:'google/gemma-3-27b-it:free' },
-    google: { key:'No key needed — GOOGLE_AI_KEY is set server-side', p:'gemini-2.0-flash', s:'gemini-2.0-flash' },
+    google: { key:'Your Google AI Studio key (aistudio.google.com/app/apikey)', p:'gemini-2.0-flash', s:'gemini-2.0-flash' },
   };
   const h = hints[p] || hints.anthropic;
   document.getElementById('set-key-hint').textContent = h.key;
@@ -2213,9 +2193,9 @@ function updateSettingsBadge() {
   const el = document.getElementById('settings-badge');
   if (el) {
     const p = s.provider || 'anthropic';
-    const labels = { anthropic:'Claude', openrouter:'OpenRouter', free:'Free', google:'Gemini' };
+    const labels = { anthropic:'Claude', google:'Gemini' };
     el.textContent = labels[p] || 'Claude';
-    el.style.background = p === 'anthropic' ? '#c41230' : p === 'openrouter' ? '#5b3dbd' : p === 'google' ? '#1a73e8' : '#2e7d32';
+    el.style.background = p === 'google' ? '#1a73e8' : '#c41230';
   }
 }
 

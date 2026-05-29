@@ -1,5 +1,5 @@
 // Netlify Function — Google AI Studio (Gemini) proxy
-// Uses GOOGLE_AI_KEY env var (server-side, never exposed to browser).
+// Accepts user key via x-user-api-key header, falls back to GOOGLE_AI_KEY env var.
 // Accepts OpenAI-style messages and proxies to Google's OpenAI-compatible endpoint.
 
 export default async (req) => {
@@ -9,8 +9,9 @@ export default async (req) => {
   try { body = await req.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
   if (!body || !body.messages) return json({ error: 'Missing messages' }, 400);
 
-  const key = process.env.GOOGLE_AI_KEY || '';
-  if (!key) return json({ error: 'GOOGLE_AI_KEY not configured on server.' }, 500);
+  const userKey = req.headers.get('x-user-api-key') || '';
+  const key = userKey || process.env.GOOGLE_AI_KEY || '';
+  if (!key) return json({ error: 'Google AI key not set. Add your key in ⚙ Settings or set GOOGLE_AI_KEY in server env.' }, 500);
 
   const model = body.model || 'gemini-2.0-flash';
   const upstream = await fetch(

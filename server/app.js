@@ -78,8 +78,9 @@ app.post('/api/claude', (req, res) => {
 // ── Google AI Studio proxy ──────────────────────────────────
 app.post('/api/gemini', async (req, res) => {
   if (!req.body || !req.body.messages) return res.status(400).json({ error: 'Missing messages' });
-  const key = process.env.GOOGLE_AI_KEY || '';
-  if (!key) return res.status(500).json({ error: 'GOOGLE_AI_KEY not set in .env' });
+  const userKey = req.headers['x-user-api-key'] || '';
+  const key = userKey || process.env.GOOGLE_AI_KEY || '';
+  if (!key) return res.status(500).json({ error: 'Google AI key not set. Add your key in ⚙ Settings or set GOOGLE_AI_KEY in .env.' });
   const model = req.body.model || 'gemini-2.0-flash';
   try {
     const r = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
