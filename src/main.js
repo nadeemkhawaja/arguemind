@@ -2017,7 +2017,9 @@ function getPrimaryModel() {
 function getSecondaryModel() {
   const s = getApiSettings();
   const provider = s.provider || 'anthropic';
-  if (provider === 'anthropic') return s.secondaryModel || 'claude-haiku-4-20250514';
+  // Migrate stale invalid Haiku id that older builds shipped as the default.
+  if (s.secondaryModel === 'claude-haiku-4-20250514') s.secondaryModel = '';
+  if (provider === 'anthropic') return s.secondaryModel || 'claude-haiku-4-5-20251001';
   if (provider === 'openrouter') return s.secondaryModel || 'google/gemma-3-27b-it:free';
   return s.secondaryModel || 'google/gemma-3-27b-it:free';
 }
@@ -2113,7 +2115,7 @@ function clearApiKey() {
 function updateSettingsHints() {
   const p = document.getElementById('set-provider').value;
   const hints = {
-    anthropic: { key:'sk-ant-...  (get from console.anthropic.com)', p:'claude-sonnet-4-20250514', s:'claude-haiku-4-20250514' },
+    anthropic: { key:'sk-ant-...  (get from console.anthropic.com)', p:'claude-sonnet-4-20250514', s:'claude-haiku-4-5-20251001' },
     openrouter: { key:'sk-or-...  (get from openrouter.ai/keys)', p:'anthropic/claude-sonnet-4', s:'google/gemma-3-27b-it:free' },
     free: { key:'sk-or-...  (optional — free models on OpenRouter)', p:'meta-llama/llama-3.3-70b-instruct:free', s:'google/gemma-3-27b-it:free' },
   };
