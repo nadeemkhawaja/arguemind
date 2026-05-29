@@ -1,15 +1,7 @@
+import { esc, delay, getApiSettings, getPrimaryModel, getSecondaryModel } from './utils.js';
+
 // ================================================================
 // CATEGORY + TOPIC DATABASE — 9 categories × 4 topics = 36 total
-
-function esc(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-};
 
 // Each category has: label, accent color, 4 sources, 4 topics
 // ================================================================
@@ -1971,7 +1963,6 @@ function playLayer(btn, n) {
   speak(S.layers[n] || '').then(() => { btn.classList.remove('playing'); btn.textContent = 'Read Aloud'; });
 }
 
-function delay(ms){return new Promise(r=>setTimeout(r,ms));}
 
 function telegram(msg,type='ok'){
   const t=document.getElementById('telegram');
@@ -2002,25 +1993,6 @@ function clearAll(){
 // Settings stored in localStorage under 'am_settings'
 // ================================================================
 
-function getApiSettings() {
-  try { return JSON.parse(localStorage.getItem('am_settings') || '{}'); } catch { return {}; }
-}
-
-function getPrimaryModel() {
-  const s = getApiSettings();
-  const provider = s.provider || 'anthropic';
-  if (provider === 'anthropic') return s.primaryModel || 'claude-sonnet-4-20250514';
-  if (provider === 'openrouter') return s.primaryModel || 'anthropic/claude-sonnet-4';
-  return s.primaryModel || 'meta-llama/llama-3.3-70b-instruct:free';
-}
-
-function getSecondaryModel() {
-  const s = getApiSettings();
-  const provider = s.provider || 'anthropic';
-  if (provider === 'anthropic') return s.secondaryModel || 'claude-haiku-4-20250514';
-  if (provider === 'openrouter') return s.secondaryModel || 'google/gemma-3-27b-it:free';
-  return s.secondaryModel || 'google/gemma-3-27b-it:free';
-}
 
 async function api(prompt, maxTokens=1200, useSecondary=false) {
   const r = await _apiFetch(prompt, maxTokens, useSecondary);
