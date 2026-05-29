@@ -2068,7 +2068,10 @@ function getSecondaryModel() {
 
 async function api(prompt, maxTokens=1200, useSecondary=false) {
   const r = await _apiFetch(prompt, maxTokens, useSecondary);
-  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error?.message || e.error || `API error ${r.status}`); }
+  if (!r.ok) {
+    if (r.status === 429) throw new Error('Rate limit reached — please wait a moment and try again, or switch providers in ⚙ Settings.');
+    const e = await r.json().catch(()=>({})); throw new Error(e.error?.message || e.error || `API error ${r.status}`);
+  }
   const d = await r.json();
   // Anthropic format: d.content[0].text | OpenAI-compat format (Google): d.choices[0].message.content
   return d.content?.[0]?.text || d.choices?.[0]?.message?.content || '';
@@ -2076,7 +2079,10 @@ async function api(prompt, maxTokens=1200, useSecondary=false) {
 
 async function apiWithTokens(prompt, maxTokens=1200, useSecondary=false) {
   const r = await _apiFetch(prompt, maxTokens, useSecondary);
-  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error?.message || e.error || `API error ${r.status}`); }
+  if (!r.ok) {
+    if (r.status === 429) throw new Error('Rate limit reached — please wait a moment and try again, or switch providers in ⚙ Settings.');
+    const e = await r.json().catch(()=>({})); throw new Error(e.error?.message || e.error || `API error ${r.status}`);
+  }
   const d = await r.json();
   const text = d.content?.[0]?.text || d.choices?.[0]?.message?.content || '';
   const inTok = d.usage?.input_tokens || d.usage?.prompt_tokens || 0;
