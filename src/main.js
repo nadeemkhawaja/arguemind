@@ -1124,10 +1124,22 @@ async function speak(text) {
 // ================================================================
 // MAIN PIPELINE
 // ================================================================
+
+// Cap output tokens to the selected Argument Depth so layers honour the
+// Compact / Brief / Standard / In-depth choice instead of running long.
+// ~6 tokens per word + headroom for markdown/headers, capped at the old 1400.
+function depthMaxTokens() {
+  const m = String(S.depth || '50-100').match(/(\d+)\s*[-–]\s*(\d+)/);
+  const hi = m ? +m[2] : 100;
+  return Math.min(1400, hi * 6 + 120);
+}
+
 async function runPipeline() {
   S.position = document.getElementById('sel-pos').value;
   S.persona = document.getElementById('sel-persona').value;
   S.depth = document.getElementById('sel-depth').value;
+  // Strict, prominent length rule — the trailing "N words" alone was ignored.
+  const wc = `STRICT LENGTH LIMIT: keep the entire response within ${S.depth} words. Be concise and do not exceed it.`;
   // S.lang is set by the language switcher — don't override from dropdown
   S.topic = S.topic || document.getElementById('custom-in').value.trim();
 
@@ -1164,7 +1176,7 @@ async function runPipeline() {
 ${S.lang}Layer 1 — Context Analysis.
 Topic: "${S.topic}". Position: "${S.position}".${refCtx}
 Objectively map the debate. Identify 4-5 key factors. Surface hidden assumptions.
-Do NOT take a position. ${S.depth} words.`, true);
+Do NOT take a position. ${wc}`, true);
 
     // L2 ARGUMENTS — primary model
     setTW('Layer 2 — Building your strongest arguments...');
@@ -1174,7 +1186,7 @@ ${S.lang}Layer 2 — Argument Builder.
 Topic: "${S.topic}". Defend: "${S.position}".
 Context from Layer 1: ${S.layers[1]||''}${refCtx}
 3 distinct evidence-backed arguments with claim, evidence, and example.
-${S.depth} words.`);
+${wc}`);
 
     // SOCRATIC
     if (S.socraticOn) {
@@ -1192,7 +1204,7 @@ Topic: "${S.topic}". Challenge: "${S.position}".
 Prior context (L1): ${S.layers[1]||''}
 Arguments made (L2): ${S.layers[2]||''}
 ${S.socraticAnswers.length?`User reinforced position: ${S.socraticAnswers.join(' | ')}`:''}
-3 genuinely compelling counter-arguments. No strawmen. ${S.depth} words.`);
+3 genuinely compelling counter-arguments. No strawmen. ${wc}`);
 
     // L4 CRITIQUE — uses secondary model for independent critical perspective
     setTW('Layer 4 — Auditing weaknesses in your case...');
@@ -1202,7 +1214,7 @@ ${S.lang}Layer 4 — Self-Critique.
 Topic: "${S.topic}". Position: "${S.position}".
 Original arguments (L2): ${S.layers[2]||''}
 Counter-arguments faced (L3): ${S.layers[3]||''}
-3-4 honest weaknesses with improvement suggestions. ${S.depth} words.`, true);
+3-4 honest weaknesses with improvement suggestions. ${wc}`, true);
 
     // L5 FINAL
     setTW('Layer 5 — Loffi delivers the final verdict...');
@@ -1216,7 +1228,7 @@ Arguments (L2): ${S.layers[2]||''}
 Counters (L3): ${S.layers[3]||''}
 Critique (L4): ${S.layers[4]||''}
 Synthesise all layers. State conditions under which each side wins.
-End with a bold "FINAL VERDICT:" from Loffi. ${S.depth} words.`);
+End with a bold "FINAL VERDICT:" from Loffi. ${wc}`);
 
     // SCORE
     setTW('Scoring the debate...');
@@ -1282,7 +1294,7 @@ async function runLayer(n, title, sub, color, prompt, useSecondary=false) {
   const t0 = Date.now();
   let text='', inTok=0, outTok=0;
   try {
-    const r = await apiWithTokens(prompt, 1400, useSecondary);
+    const r = await apiWithTokens(prompt, depthMaxTokens(), useSecondary);
     text=r.text; inTok=r.in; outTok=r.out;
   } catch(e) { text=`[Layer ${n} error: ${e.message}]`; }
 
@@ -2017,7 +2029,11 @@ function getPrimaryModel() {
 function getSecondaryModel() {
   const s = getApiSettings();
   const provider = s.provider || 'anthropic';
-  if (provider === 'anthropic') return s.secondaryModel || 'claude-haiku-4-20250514';
+  // Migrate the stale invalid Haiku id older builds shipped as the default.
+  // There is no "Haiku 4.0" — anything matching claude-haiku-4-<date> (but not
+  // the valid claude-haiku-4-5-*) is bogus and must fall back to the default.
+  if (/^claude-haiku-4-(?!5)/.test(s.secondaryModel || '')) s.secondaryModel = '';
+  if (provider === 'anthropic') return s.secondaryModel || 'claude-haiku-4-5-20251001';
   if (provider === 'openrouter') return s.secondaryModel || 'google/gemma-3-27b-it:free';
   return s.secondaryModel || 'google/gemma-3-27b-it:free';
 }
@@ -2113,7 +2129,7 @@ function clearApiKey() {
 function updateSettingsHints() {
   const p = document.getElementById('set-provider').value;
   const hints = {
-    anthropic: { key:'sk-ant-...  (get from console.anthropic.com)', p:'claude-sonnet-4-20250514', s:'claude-haiku-4-20250514' },
+    anthropic: { key:'sk-ant-...  (get from console.anthropic.com)', p:'claude-sonnet-4-20250514', s:'claude-haiku-4-5-20251001' },
     openrouter: { key:'sk-or-...  (get from openrouter.ai/keys)', p:'anthropic/claude-sonnet-4', s:'google/gemma-3-27b-it:free' },
     free: { key:'sk-or-...  (optional — free models on OpenRouter)', p:'meta-llama/llama-3.3-70b-instruct:free', s:'google/gemma-3-27b-it:free' },
   };
