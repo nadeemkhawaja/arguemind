@@ -2090,31 +2090,37 @@ async function apiWithTokens(prompt, maxTokens=1200, useSecondary=false) {
   return { text, in: inTok, out: outTok };
 }
 
-async function _apiFetch(prompt, maxTokens, useSecondary) {
+async function _apiFetch(prompt, maxTokens, useSecondary, _retries = 3) {
   const s = getApiSettings();
   const provider = s.provider || 'anthropic';
   const model = useSecondary ? getSecondaryModel() : getPrimaryModel();
   const userKey = s.apiKey || '';
 
+  let r;
   if (provider === 'google') {
     const headers = { 'Content-Type': 'application/json' };
     if (userKey) headers['x-user-api-key'] = userKey;
-    return fetch('/api/gemini', {
+    r = await fetch('/api/gemini', {
       method: 'POST',
       headers,
       body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
     });
+  } else {
+    r = await fetch('/api/claude', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(userKey ? { 'x-user-api-key': userKey } : {})
+      },
+      body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
+    });
   }
 
-  // Default: Anthropic via server proxy
-  return fetch('/api/claude', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(userKey ? { 'x-user-api-key': userKey } : {})
-    },
-    body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
-  });
+  if (r.status === 429 && _retries > 0) {
+    await new Promise(res => setTimeout(res, 4000));
+    return _apiFetch(prompt, maxTokens, useSecondary, _retries - 1);
+  }
+  return r;
 }
 
 // ── Web Search (Brave) via serverless proxy ──────────────────
