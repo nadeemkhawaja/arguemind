@@ -1,7 +1,6 @@
-// Netlify Edge Function — API proxy
-// Supports: Anthropic (Claude), OpenRouter
-// User can supply their own key via request body userKey field
-// Falls back to ANTHROPIC_API_KEY env var for Anthropic requests
+// Netlify Edge Function — Anthropic API proxy
+// User can supply their own key via x-user-api-key header
+// Falls back to ANTHROPIC_API_KEY env var
 
 export default async (req) => {
   if (req.method !== 'POST') {
@@ -44,36 +43,7 @@ export default async (req) => {
   }
 
   const model = body.model || 'claude-sonnet-4-20250514';
-  const isOpenRouter = model.includes('/') && !model.startsWith('claude-');
 
-  // Route to OpenRouter if model looks like an OpenRouter model
-  // (OpenRouter models are like "anthropic/claude-sonnet-4", "google/gemma-3-27b-it:free")
-  // Pure Anthropic models like "claude-sonnet-4-20250514" go to Anthropic directly
-  if (isOpenRouter) {
-    // This shouldn't normally be called via proxy for OpenRouter — the frontend calls OR directly.
-    // But if it does, proxy it.
-    const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-        'HTTP-Referer': req.headers.get('origin') || 'https://arguemind.netlify.app',
-        'X-Title': 'ArgueMind',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: body.max_tokens || 1200,
-        messages: body.messages,
-      }),
-    });
-    const text = await upstream.text();
-    return new Response(text, {
-      status: upstream.status,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Default: Anthropic API
   const upstream = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
