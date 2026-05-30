@@ -2108,13 +2108,11 @@ async function _apiFetch(prompt, maxTokens, useSecondary, _retries = 3) {
       body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
     });
   } else if (provider === 'groq') {
-    if (!userKey) throw new Error('Groq API key not set — open Settings ⚙ and paste your key from console.groq.com');
-    r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const headers = { 'Content-Type': 'application/json' };
+    if (userKey) headers['x-user-api-key'] = userKey;
+    r = await fetch('/api/groq', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${userKey}`
-      },
+      headers,
       body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
     });
   } else {
@@ -2206,7 +2204,7 @@ function updateSettingsHints() {
   const hints = {
     anthropic: { key:'sk-ant-...  (get from console.anthropic.com)', p:'claude-sonnet-4-20250514', s:'claude-haiku-4-5-20251001' },
     google: { key:'Your Google AI Studio key (aistudio.google.com/app/apikey)', p:'gemini-2.0-flash', s:'gemini-2.0-flash' },
-    groq: { key:'gsk_...  (get from console.groq.com — free, 30 RPM)', p:'llama-3.3-70b-versatile', s:'llama-3.1-8b-instant' },
+    groq: { key:'gsk_...  (console.groq.com — free 30 RPM, or set GROQ_API_KEY in Netlify env)', p:'llama-3.3-70b-versatile', s:'llama-3.1-8b-instant' },
   };
   const h = hints[p] || hints.anthropic;
   document.getElementById('set-key-hint').textContent = h.key;
