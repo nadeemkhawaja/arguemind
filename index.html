@@ -707,6 +707,7 @@
         <select id="set-provider" onchange="updateSettingsHints()" style="width:100%;margin-top:4px;font-size:12px;padding:6px 8px;border:1px solid var(--rule-heavy);background:var(--paper);font-family:var(--mono);">
           <option value="anthropic">Anthropic (Claude) — via secure proxy</option>
           <option value="google">Google AI Studio (Gemini) — via secure proxy</option>
+          <option value="groq">Groq — free, fast, 30 RPM (Llama 3.3)</option>
         </select>
       </div>
 
@@ -750,7 +751,8 @@
       <div style="background:var(--paper2);border:1px solid var(--rule);padding:10px;font-family:var(--mono);font-size:9px;color:var(--ink3);line-height:1.7;">
         <strong>Provider notes:</strong><br>
         • <strong>Anthropic</strong>: Key stays server-side in .env — leave API key blank to use server key.<br>
-        • <strong>Google AI Studio</strong>: Free — 1,500 requests/day. Add your key in the API Key field above, or set GOOGLE_AI_KEY server-side.
+        • <strong>Google AI Studio</strong>: Free — 1,500 requests/day. Add your key in the API Key field above, or set GOOGLE_AI_KEY server-side.<br>
+        • <strong>Groq</strong>: Free tier with 30 RPM — great for avoiding rate limits. Get a key at console.groq.com.
       </div>
 
       <div style="display:flex;gap:8px;justify-content:flex-end;">
