@@ -2213,13 +2213,14 @@ function updateSettingsHints() {
 }
 function updateSettingsBadge() {
   const s = getApiSettings();
-  const el = document.getElementById('settings-badge');
-  if (el) {
-    const p = s.provider || 'anthropic';
-    const labels = { anthropic:'Claude', google:'Gemini', groq:'Groq' };
-    el.textContent = labels[p] || 'Claude';
-    el.style.background = p === 'google' ? '#1a73e8' : p === 'groq' ? '#f55036' : '#c41230';
-  }
+  const p = s.provider || 'anthropic';
+  const labels = { anthropic:'Claude', google:'Gemini', groq:'Groq' };
+  const text = labels[p] || 'Claude';
+  const bg = p === 'google' ? '#1a73e8' : p === 'groq' ? '#f55036' : '#c41230';
+  ['settings-badge', 'settings-badge-mobile'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = text; el.style.background = bg; }
+  });
 }
 
 // ================================================================
