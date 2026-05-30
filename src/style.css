@@ -2133,6 +2133,7 @@ svg .ts { font-family: var(--mono); font-size: 9px; fill: #5F5E5A; }
    SETTINGS BADGE
    ============================================================ */
 .settings-btn { display: flex; align-items: center; gap: 4px; }
+.mobile-settings-bar { display: none; }
 .settings-badge {
   display: inline-block;
   padding: 1px 5px;
