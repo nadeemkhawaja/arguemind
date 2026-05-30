@@ -95,6 +95,26 @@ app.post('/api/gemini', async (req, res) => {
   }
 });
 
+// ── Groq proxy ──────────────────────────────────────────────
+app.post('/api/groq', async (req, res) => {
+  if (!req.body || !req.body.messages) return res.status(400).json({ error: 'Missing messages' });
+  const userKey = req.headers['x-user-api-key'] || '';
+  const key = userKey || process.env.GROQ_API_KEY || '';
+  if (!key) return res.status(500).json({ error: 'Groq API key not set. Add your key in ⚙ Settings or set GROQ_API_KEY in .env.' });
+  const model = req.body.model || 'llama-3.3-70b-versatile';
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({ model, max_tokens: req.body.max_tokens || 1200, messages: req.body.messages }),
+    });
+    const text = await r.text();
+    res.status(r.status).set('Content-Type', 'application/json').send(text);
+  } catch (e) {
+    res.status(502).json({ error: 'Groq proxy error: ' + e.message });
+  }
+});
+
 // ── Web Search proxy (Brave or Google) ─────────────────────
 app.post('/api/search', async (req, res) => {
   const query = (req.body && req.body.q ? String(req.body.q) : '').trim();
