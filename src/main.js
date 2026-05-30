@@ -2055,6 +2055,7 @@ function getPrimaryModel() {
   const s = getApiSettings();
   const provider = s.provider || 'anthropic';
   if (provider === 'google') return s.primaryModel || 'gemini-2.0-flash';
+  if (provider === 'groq') return s.primaryModel || 'llama-3.3-70b-versatile';
   return s.primaryModel || 'claude-sonnet-4-20250514';
 }
 
@@ -2063,6 +2064,7 @@ function getSecondaryModel() {
   const provider = s.provider || 'anthropic';
   if (/^claude-haiku-4-(?!5)/.test(s.secondaryModel || '')) s.secondaryModel = '';
   if (provider === 'google') return s.secondaryModel || 'gemini-2.0-flash';
+  if (provider === 'groq') return s.secondaryModel || 'llama-3.1-8b-instant';
   return s.secondaryModel || 'claude-haiku-4-5-20251001';
 }
 
@@ -2103,6 +2105,16 @@ async function _apiFetch(prompt, maxTokens, useSecondary, _retries = 3) {
     r = await fetch('/api/gemini', {
       method: 'POST',
       headers,
+      body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
+    });
+  } else if (provider === 'groq') {
+    if (!userKey) throw new Error('Groq API key not set — open Settings ⚙ and paste your key from console.groq.com');
+    r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userKey}`
+      },
       body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
     });
   } else {
@@ -2194,6 +2206,7 @@ function updateSettingsHints() {
   const hints = {
     anthropic: { key:'sk-ant-...  (get from console.anthropic.com)', p:'claude-sonnet-4-20250514', s:'claude-haiku-4-5-20251001' },
     google: { key:'Your Google AI Studio key (aistudio.google.com/app/apikey)', p:'gemini-2.0-flash', s:'gemini-2.0-flash' },
+    groq: { key:'gsk_...  (get from console.groq.com — free, 30 RPM)', p:'llama-3.3-70b-versatile', s:'llama-3.1-8b-instant' },
   };
   const h = hints[p] || hints.anthropic;
   document.getElementById('set-key-hint').textContent = h.key;
@@ -2205,9 +2218,9 @@ function updateSettingsBadge() {
   const el = document.getElementById('settings-badge');
   if (el) {
     const p = s.provider || 'anthropic';
-    const labels = { anthropic:'Claude', google:'Gemini' };
+    const labels = { anthropic:'Claude', google:'Gemini', groq:'Groq' };
     el.textContent = labels[p] || 'Claude';
-    el.style.background = p === 'google' ? '#1a73e8' : '#c41230';
+    el.style.background = p === 'google' ? '#1a73e8' : p === 'groq' ? '#f55036' : '#c41230';
   }
 }
 
