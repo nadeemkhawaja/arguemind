@@ -1668,11 +1668,32 @@ function getApiSettings() {
   try { return JSON.parse(localStorage.getItem('am_settings') || '{}'); } catch { return {}; }
 }
 
+// Non-secret server defaults from .env (AI_PROVIDER / LOCAL_LLM_BASE_URL /
+// LOCAL_LLM_MODEL) — e.g. a self-hosted model on a LAN VM — so the Local
+// provider works without retyping the endpoint into ⚙ Settings every time.
+let _serverConfig = null;
+let _serverConfigPromise = null;
+function ensureServerConfig() {
+  if (_serverConfig) return Promise.resolve(_serverConfig);
+  if (!_serverConfigPromise) {
+    _serverConfigPromise = fetch('/api/config')
+      .then(r => r.ok ? r.json() : {})
+      .then(cfg => { _serverConfig = cfg || {}; return _serverConfig; })
+      .catch(() => { _serverConfig = {}; return _serverConfig; });
+  }
+  return _serverConfigPromise;
+}
+ensureServerConfig().then(() => { try { updateSettingsBadge(); } catch {} }); // refresh badge once env defaults (e.g. AI_PROVIDER=local) resolve
+
+function getEffectiveProvider(s) {
+  return s.provider || _serverConfig?.provider || 'anthropic';
+}
+
 function getPrimaryModel() {
   const s = getApiSettings();
-  const provider = s.provider || 'anthropic';
+  const provider = getEffectiveProvider(s);
   if (provider === 'anthropic') return s.primaryModel || 'claude-opus-4-8';
-  if (provider === 'local') return s.primaryModel || 'llama3.2';
+  if (provider === 'local') return s.primaryModel || _serverConfig?.localModel || 'llama3.2';
   if (provider === 'groq') return s.primaryModel || 'llama-3.3-70b-versatile';
   if (provider === 'openrouter') return s.primaryModel || 'anthropic/claude-opus-4.8';
   return s.primaryModel || 'meta-llama/llama-3.3-70b-instruct:free';
@@ -1680,9 +1701,9 @@ function getPrimaryModel() {
 
 function getSecondaryModel() {
   const s = getApiSettings();
-  const provider = s.provider || 'anthropic';
+  const provider = getEffectiveProvider(s);
   if (provider === 'anthropic') return s.secondaryModel || 'claude-haiku-4-5';
-  if (provider === 'local') return s.secondaryModel || 'llama3.2';
+  if (provider === 'local') return s.secondaryModel || _serverConfig?.localModel || 'llama3.2';
   if (provider === 'groq') return s.secondaryModel || 'llama-3.1-8b-instant';
   if (provider === 'openrouter') return s.secondaryModel || 'anthropic/claude-haiku-4.5';
   return s.secondaryModel || 'qwen/qwen3-next-80b-a3b-instruct:free';
@@ -1720,14 +1741,16 @@ async function apiWithTokens(prompt, maxTokens=1200, useSecondary=false) {
 }
 
 async function _apiFetch(prompt, maxTokens, useSecondary) {
+  await ensureServerConfig();
   const s = getApiSettings();
-  const provider = s.provider || 'anthropic';
+  const provider = getEffectiveProvider(s);
   const model = useSecondary ? getSecondaryModel() : getPrimaryModel();
   const userKey = s.apiKey || '';
 
   if (provider === 'local') {
-    // Ollama / LM Studio on this machine, via the server proxy (avoids CORS)
-    let baseUrl = (s.localUrl || 'http://localhost:11434').trim();
+    // Ollama / LM Studio on this machine, or a self-hosted model on a LAN VM
+    // (LOCAL_LLM_BASE_URL) — via the server proxy (avoids CORS + SSRF checks live server-side)
+    let baseUrl = (s.localUrl || _serverConfig?.localBaseUrl || 'http://localhost:11434').trim();
     if (baseUrl && !/^https?:\/\//i.test(baseUrl)) baseUrl = 'http://' + baseUrl;
     return fetch('/api/local', {
       method: 'POST',
@@ -1788,9 +1811,10 @@ async function _apiFetch(prompt, maxTokens, useSecondary) {
 // ================================================================
 function openSettings() {
   const s = getApiSettings();
-  document.getElementById('set-provider').value = s.provider || 'anthropic';
+  document.getElementById('set-provider').value = getEffectiveProvider(s);
   document.getElementById('set-api-key').value = s.apiKey || '';
   document.getElementById('set-local-url').value = s.localUrl || '';
+  document.getElementById('set-local-url').placeholder = _serverConfig?.localBaseUrl || 'http://localhost:11434';
   document.getElementById('set-primary-model').value = s.primaryModel || '';
   document.getElementById('set-secondary-model').value = s.secondaryModel || '';
   updateSettingsHints();
@@ -1823,7 +1847,7 @@ function updateSettingsHints() {
   const p = document.getElementById('set-provider').value;
   const hints = {
     anthropic: { key:'sk-ant-...  (get from console.anthropic.com)', p:'claude-opus-4-8', s:'claude-haiku-4-5' },
-    local: { key:'No API key needed — models run entirely on your machine', p:'llama3.2', s:'llama3.2' },
+    local: { key:'No API key needed — Ollama/LM Studio on this machine, or a self-hosted model on your LAN', p:_serverConfig?.localModel || 'llama3.2', s:_serverConfig?.localModel || 'llama3.2' },
     groq: { key:'gsk_...  (get a free key at console.groq.com/keys)', p:'llama-3.3-70b-versatile', s:'llama-3.1-8b-instant' },
     openrouter: { key:'sk-or-...  (get from openrouter.ai/keys)', p:'anthropic/claude-opus-4.8', s:'anthropic/claude-haiku-4.5' },
     free: { key:'sk-or-...  (optional — free models on OpenRouter)', p:'meta-llama/llama-3.3-70b-instruct:free', s:'qwen/qwen3-next-80b-a3b-instruct:free' },
@@ -1838,7 +1862,7 @@ function updateSettingsBadge() {
   const s = getApiSettings();
   const el = document.getElementById('settings-badge');
   if (el) {
-    const p = s.provider || 'anthropic';
+    const p = getEffectiveProvider(s);
     const labels = { anthropic:'Claude', local:'Local', groq:'Groq', openrouter:'OpenRouter', free:'Free' };
     el.textContent = labels[p] || 'Claude';
     el.style.background = p === 'anthropic' ? '#c41230' : p === 'local' ? '#0e7490' : p === 'groq' ? '#f97316' : p === 'openrouter' ? '#5b3dbd' : '#2e7d32';

@@ -101,35 +101,70 @@ app.post('/api/groq', async (req, res) => {
   }
 });
 
-// ── Local model proxy (Ollama / LM Studio) ─────────────────
-// OpenAI-compatible chat endpoint on this machine. Proxied server-side
-// so the browser needs no CORS setup. Restricted to localhost targets.
+// ── Local / self-hosted model proxy ─────────────────────────
+// OpenAI-compatible chat endpoint — Ollama/LM Studio on this machine, or a
+// self-hosted model on a LAN VM (LOCAL_LLM_BASE_URL). Proxied server-side
+// so the browser needs no CORS setup. Restricted to this machine + private
+// network ranges — never an arbitrary public host (SSRF guard).
+function isAllowedLocalHost(hostname) {
+  if (['localhost', '127.0.0.1', '[::1]', '::1'].includes(hostname)) return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+  return false;
+}
+
+function normalizeBaseUrl(input) {
+  let raw = (input || '').trim();
+  if (!raw) return null;
+  if (!/^https?:\/\//i.test(raw)) raw = 'http://' + raw;
+  return raw;
+}
+
 app.post('/api/local', async (req, res) => {
   const { baseUrl, model, max_tokens, messages } = req.body || {};
   if (!messages) return res.status(400).json({ error: 'Missing messages' });
 
-  let raw = (baseUrl || 'http://localhost:11434').trim();
-  if (raw && !/^https?:\/\//i.test(raw)) raw = 'http://' + raw;
+  const raw = normalizeBaseUrl(baseUrl) || normalizeBaseUrl(process.env.LOCAL_LLM_BASE_URL) || 'http://localhost:11434';
   let url;
   try { url = new URL(raw); }
   catch { return res.status(400).json({ error: `Invalid local endpoint URL: "${baseUrl}"` }); }
-  if (!['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname)) {
-    return res.status(400).json({ error: 'Local endpoint must be on localhost (e.g. http://localhost:11434)' });
+  if (!isAllowedLocalHost(url.hostname)) {
+    return res.status(400).json({ error: `Local endpoint must be this machine or a private network address (got "${url.hostname}")` });
   }
 
+  // If the URL already ends in a path (e.g. .../v1), don't append /v1/chat/completions twice.
+  const base = url.pathname.replace(/\/$/, '');
+  const chatPath = /\/v1$/.test(base) ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
+
   try {
-    const upstream = await fetch(`${url.origin}/v1/chat/completions`, {
+    const upstream = await fetch(`${url.origin}${chatPath}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: model || 'llama3.2', max_tokens: max_tokens || 1200, messages }),
+      body: JSON.stringify({
+        model: model || process.env.LOCAL_LLM_MODEL || 'llama3.2',
+        max_tokens: max_tokens || 1200,
+        messages,
+      }),
     });
     const text = await upstream.text();
     res.status(upstream.status).type('application/json').send(text);
   } catch (err) {
     res.status(502).json({
-      error: `Cannot reach local model at ${url.origin} — is Ollama or LM Studio running? (${err.message})`,
+      error: `Cannot reach local model at ${url.origin}${chatPath} — is it running? (${err.message})`,
     });
   }
+});
+
+// ── Client config ────────────────────────────────────────────
+// Non-secret defaults the frontend can prefill from .env, so a
+// self-hosted VM endpoint doesn't need to be retyped into Settings.
+app.get('/api/config', (_req, res) => {
+  res.json({
+    provider: process.env.AI_PROVIDER || '',
+    localBaseUrl: process.env.LOCAL_LLM_BASE_URL || '',
+    localModel: process.env.LOCAL_LLM_MODEL || '',
+  });
 });
 
 // ── Local Quran/Hadith library search ──────────────────────
