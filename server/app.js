@@ -115,10 +115,20 @@ function isAllowedLocalHost(hostname) {
 }
 
 function normalizeBaseUrl(input) {
-  let raw = (input || '').trim();
+  // Tolerant of anything users paste: full .env lines ("LOCAL_LLM_BASE_URL=http://…"),
+  // surrounding quotes, missing scheme ("10.20.1.232:8001/v1"), stray whitespace.
+  let raw = String(input || '').trim().replace(/^["']+|["']+$/g, '').trim();
   if (!raw) return null;
-  if (!/^https?:\/\//i.test(raw)) raw = 'http://' + raw;
-  return raw;
+  const http = raw.match(/https?:\/\/\S+/i);
+  if (http) return http[0];
+  raw = raw.replace(/^[A-Za-z0-9_]+\s*=\s*/, '').trim();
+  if (!raw) return null;
+  return 'http://' + raw;
+}
+
+function normalizeModelName(input) {
+  // Strip a pasted "LOCAL_LLM_MODEL=" style prefix and quotes.
+  return String(input || '').trim().replace(/^["']+|["']+$/g, '').replace(/^[A-Za-z0-9_]+\s*=\s*/, '').trim();
 }
 
 app.post('/api/local', async (req, res) => {
@@ -142,7 +152,7 @@ app.post('/api/local', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: model || process.env.LOCAL_LLM_MODEL || 'llama3.2',
+        model: normalizeModelName(model) || process.env.LOCAL_LLM_MODEL || 'llama3.2',
         max_tokens: max_tokens || 1200,
         messages,
       }),

@@ -1672,6 +1672,14 @@ function getApiSettings() {
   try { return JSON.parse(localStorage.getItem('am_settings') || '{}'); } catch { return {}; }
 }
 
+// Tolerant of pasted .env lines ("LOCAL_LLM_BASE_URL=http://…"), quotes, whitespace.
+function cleanEnvPaste(v) {
+  const raw = String(v || '').trim().replace(/^["']+|["']+$/g, '').trim();
+  const http = raw.match(/https?:\/\/\S+/i);
+  if (http) return http[0];
+  return raw.replace(/^[A-Za-z0-9_]+\s*=\s*/, '').trim();
+}
+
 // Non-secret server defaults from .env (AI_PROVIDER / LOCAL_LLM_BASE_URL /
 // LOCAL_LLM_MODEL) — e.g. a self-hosted model on a LAN VM — so the Local
 // provider works without retyping the endpoint into ⚙ Settings every time.
@@ -1696,21 +1704,23 @@ function getEffectiveProvider(s) {
 function getPrimaryModel() {
   const s = getApiSettings();
   const provider = getEffectiveProvider(s);
-  if (provider === 'anthropic') return s.primaryModel || 'claude-opus-4-8';
-  if (provider === 'local') return s.primaryModel || _serverConfig?.localModel || 'llama3.2';
-  if (provider === 'groq') return s.primaryModel || 'llama-3.3-70b-versatile';
-  if (provider === 'openrouter') return s.primaryModel || 'anthropic/claude-opus-4.8';
-  return s.primaryModel || 'meta-llama/llama-3.3-70b-instruct:free';
+  const chosen = cleanEnvPaste(s.primaryModel);
+  if (provider === 'anthropic') return chosen || 'claude-opus-4-8';
+  if (provider === 'local') return chosen || _serverConfig?.localModel || 'llama3.2';
+  if (provider === 'groq') return chosen || 'llama-3.3-70b-versatile';
+  if (provider === 'openrouter') return chosen || 'anthropic/claude-opus-4.8';
+  return chosen || 'meta-llama/llama-3.3-70b-instruct:free';
 }
 
 function getSecondaryModel() {
   const s = getApiSettings();
   const provider = getEffectiveProvider(s);
-  if (provider === 'anthropic') return s.secondaryModel || 'claude-haiku-4-5';
-  if (provider === 'local') return s.secondaryModel || _serverConfig?.localModel || 'llama3.2';
-  if (provider === 'groq') return s.secondaryModel || 'llama-3.1-8b-instant';
-  if (provider === 'openrouter') return s.secondaryModel || 'anthropic/claude-haiku-4.5';
-  return s.secondaryModel || 'qwen/qwen3-next-80b-a3b-instruct:free';
+  const chosen = cleanEnvPaste(s.secondaryModel);
+  if (provider === 'anthropic') return chosen || 'claude-haiku-4-5';
+  if (provider === 'local') return chosen || _serverConfig?.localModel || 'llama3.2';
+  if (provider === 'groq') return chosen || 'llama-3.1-8b-instant';
+  if (provider === 'openrouter') return chosen || 'anthropic/claude-haiku-4.5';
+  return chosen || 'qwen/qwen3-next-80b-a3b-instruct:free';
 }
 
 // Retry transient failures (rate limit / overloaded) up to 2 times.
@@ -1752,10 +1762,10 @@ async function _apiFetch(prompt, maxTokens, useSecondary) {
   const userKey = s.apiKey || '';
 
   if (provider === 'local') {
-    // Ollama / LM Studio on this machine, or a self-hosted model on a LAN VM
+    // Ollama/LM Studio on this machine, or a self-hosted model on a LAN VM
     // (LOCAL_LLM_BASE_URL) — via the server proxy (avoids CORS + SSRF checks live server-side)
-    let baseUrl = (s.localUrl || _serverConfig?.localBaseUrl || 'http://localhost:11434').trim();
-    if (baseUrl && !/^https?:\/\//i.test(baseUrl)) baseUrl = 'http://' + baseUrl;
+    let baseUrl = cleanEnvPaste(s.localUrl) || cleanEnvPaste(_serverConfig?.localBaseUrl) || 'http://localhost:11434';
+    if (!/^https?:\/\//i.test(baseUrl)) baseUrl = 'http://' + baseUrl;
     return fetch('/api/local', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1831,9 +1841,9 @@ function saveSettings() {
   const s = {
     provider: document.getElementById('set-provider').value,
     apiKey: document.getElementById('set-api-key').value.trim(),
-    localUrl: document.getElementById('set-local-url').value.trim(),
-    primaryModel: document.getElementById('set-primary-model').value.trim(),
-    secondaryModel: document.getElementById('set-secondary-model').value.trim(),
+    localUrl: cleanEnvPaste(document.getElementById('set-local-url').value),
+    primaryModel: cleanEnvPaste(document.getElementById('set-primary-model').value),
+    secondaryModel: cleanEnvPaste(document.getElementById('set-secondary-model').value),
   };
   localStorage.setItem('am_settings', JSON.stringify(s));
   closeSettings();
