@@ -1727,11 +1727,13 @@ async function _apiFetch(prompt, maxTokens, useSecondary) {
 
   if (provider === 'local') {
     // Ollama / LM Studio on this machine, via the server proxy (avoids CORS)
+    let baseUrl = (s.localUrl || 'http://localhost:11434').trim();
+    if (baseUrl && !/^https?:\/\//i.test(baseUrl)) baseUrl = 'http://' + baseUrl;
     return fetch('/api/local', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        baseUrl: s.localUrl || 'http://localhost:11434',
+        baseUrl,
         model,
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }]

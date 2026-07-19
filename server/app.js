@@ -108,9 +108,11 @@ app.post('/api/local', async (req, res) => {
   const { baseUrl, model, max_tokens, messages } = req.body || {};
   if (!messages) return res.status(400).json({ error: 'Missing messages' });
 
+  let raw = (baseUrl || 'http://localhost:11434').trim();
+  if (raw && !/^https?:\/\//i.test(raw)) raw = 'http://' + raw;
   let url;
-  try { url = new URL(baseUrl || 'http://localhost:11434'); }
-  catch { return res.status(400).json({ error: 'Invalid local endpoint URL' }); }
+  try { url = new URL(raw); }
+  catch { return res.status(400).json({ error: `Invalid local endpoint URL: "${baseUrl}"` }); }
   if (!['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname)) {
     return res.status(400).json({ error: 'Local endpoint must be on localhost (e.g. http://localhost:11434)' });
   }
