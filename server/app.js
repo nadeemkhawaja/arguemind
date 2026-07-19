@@ -77,6 +77,86 @@ app.post('/api/claude', (req, res) => {
   proxy.end();
 });
 
+// ── Local model proxy (Ollama / LM Studio) ─────────────────
+// OpenAI-compatible chat endpoint on this machine. Proxied server-side
+// so the browser needs no CORS setup. Restricted to localhost targets.
+app.post('/api/local', async (req, res) => {
+  const { baseUrl, model, max_tokens, messages } = req.body || {};
+  if (!messages) return res.status(400).json({ error: 'Missing messages' });
+
+  let url;
+  try { url = new URL(baseUrl || 'http://localhost:11434'); }
+  catch { return res.status(400).json({ error: 'Invalid local endpoint URL' }); }
+  if (!['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname)) {
+    return res.status(400).json({ error: 'Local endpoint must be on localhost (e.g. http://localhost:11434)' });
+  }
+
+  try {
+    const upstream = await fetch(`${url.origin}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: model || 'llama3.2', max_tokens: max_tokens || 1200, messages }),
+    });
+    const text = await upstream.text();
+    res.status(upstream.status).type('application/json').send(text);
+  } catch (err) {
+    res.status(502).json({
+      error: `Cannot reach local model at ${url.origin} — is Ollama or LM Studio running? (${err.message})`,
+    });
+  }
+});
+
+// ── Local Quran/Hadith library search ──────────────────────
+// Reads data/library/*.json (built by scripts/fetch-library.mjs) into
+// memory once, then serves keyword matches to ground the AI's citations.
+let LIBRARY = null;
+function loadLibrary() {
+  if (LIBRARY) return LIBRARY;
+  LIBRARY = [];
+  const dir = path.join(rootDir, 'data', 'library');
+  if (!fs.existsSync(dir)) return LIBRARY;
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.endsWith('.json')) continue;
+    try {
+      const items = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      for (const it of items) {
+        if (it && it.ref && it.text) LIBRARY.push({ ...it, lc: it.text.toLowerCase() });
+      }
+    } catch (err) {
+      console.error(`Library: skipping ${f} — ${err.message}`);
+    }
+  }
+  console.log(`  📚  Library loaded: ${LIBRARY.length} verses/hadith`);
+  return LIBRARY;
+}
+
+const STOP_WORDS = new Set(['the','a','an','of','in','on','and','or','is','are','was','were','to','for','vs','with','do','does','did','be','not','it','at','by','from','that','this','should','would','can','could','who','what','when','how','why','all','any','his','her','their','has','have','had','which','into','about','than','then','them','they','there','its','only','also','but','if','as','he','she','we','you','your']);
+
+app.get('/api/library/search', (req, res) => {
+  const q = String(req.query.q || '').toLowerCase();
+  const limit = Math.min(Number(req.query.limit) || 6, 20);
+  const terms = [...new Set(q.split(/[^a-z']+/).filter(w => w.length > 2 && !STOP_WORDS.has(w)))];
+  if (!terms.length) return res.json({ results: [] });
+
+  const lib = loadLibrary();
+  const minScore = Math.min(2, terms.length);
+  const scored = [];
+  for (const item of lib) {
+    let score = 0;
+    for (const t of terms) if (item.lc.includes(t)) score++;
+    if (score >= minScore) scored.push({ score, item });
+  }
+  scored.sort((a, b) => b.score - a.score || a.item.text.length - b.item.text.length);
+  res.json({
+    count: lib.length,
+    results: scored.slice(0, limit).map(({ item }) => ({
+      ref: item.ref,
+      grade: item.grade || undefined,
+      text: item.text.length > 400 ? item.text.slice(0, 400) + '…' : item.text,
+    })),
+  });
+});
+
 app.use(express.static(path.join(rootDir, 'dist')));
 
 export default app;

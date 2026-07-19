@@ -19,6 +19,9 @@ and Hadith (collection, number, grading) along the way.
 ./start.sh          # builds the frontend and starts on http://localhost:3210
 ./stop.sh           # stops the server
 PORT=4000 ./start.sh   # use a different port
+
+node scripts/fetch-library.mjs   # (once, optional) download the Quran/Hadith
+                                 # reference library (~40 MB) for grounded citations
 ```
 
 Put your Anthropic API key in a `.env` file at the project root:
@@ -48,7 +51,11 @@ npm run dev         # Express (random port) + Vite dev server with /api proxy
 | Secondary | `claude-haiku-4-5` | Layers 1, 4 — independent context mapping and critique |
 
 Override either model in ⚙ Settings. Providers supported: **Anthropic** (via local proxy),
+**Local** (Ollama / LM Studio on your machine — no key, no cloud, fully private),
 **OpenRouter** (100+ models, key required), and **Free** (OpenRouter free-tier models).
+
+To use the Local provider: install [Ollama](https://ollama.com), run `ollama pull llama3.2`,
+then pick **Local** in ⚙ Settings. LM Studio works too (endpoint `http://localhost:1234`).
 
 ---
 
@@ -57,6 +64,7 @@ Override either model in ⚙ Settings. Providers supported: **Anthropic** (via l
 - 🧠 **5-Layer SCIPAB Pipeline** — L0 Fallacy → L1 Context → L2 Args → L3 Counter → L4 Critique → L5 Verdict
 - 🕌 **Islamic topic catalog** — Quran (sciences, theology, ethics), Hadith (methodology, jurisprudence), Islam QA (fatwa methodology, contemporary issues), each mapped to classical sources
 - 📖 **Citation discipline** — every layer is instructed to cite Surah:Ayah and Hadith collection/number/grading, and to say so when uncertain rather than invent references
+- 📚 **Local reference library** — `scripts/fetch-library.mjs` downloads the full Quran (Arabic + Pickthall English) and 10 hadith collections (Bukhari, Muslim, Abu Dawud, Tirmidhi, Nasa'i, Ibn Majah, Malik, Nawawi, Qudsi, Dehlawi — 42,000+ texts); matching passages are injected verbatim into the reasoning layers so citations come from real texts, and readable Markdown copies land in `data/quran.md` + `data/hadith/`
 - 📊 **AI Telemetry** — tokens, latency, efficiency ratio at every layer
 - ⚔️ **AI vs AI Arena** — AI Scholar debates an opponent persona; an impartial judge rules
 - 🎤 **Live Debate** — argue against AI Scholar in real time
