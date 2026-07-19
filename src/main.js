@@ -622,15 +622,19 @@ function setCustom() {
   document.querySelectorAll('.topic-card').forEach(c => c.classList.remove('selected'));
   const ps = document.getElementById('sel-pos');
   ps.innerHTML = '<option value="">— Select side —</option>' +
-    S.positions.map(p=>`<option value="${p}">${p}</option>`).join('');
+    S.positions.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
   syncAIA(); updatePreview();
   telegram('Motion filed ✓', 'ok');
 }
 
 function updatePreview() {
-  document.getElementById('prev-topic').textContent = S.topic || '—';
-  const pos = document.getElementById('sel-pos').value;
-  document.getElementById('prev-pos').textContent = pos ? `Arguing: ${pos.substring(0,50)}` : 'Pick a position →';
+  const prevTopic = document.getElementById('prev-topic');
+  if (prevTopic) prevTopic.textContent = S.topic || '—';
+  const prevPos = document.getElementById('prev-pos');
+  if (prevPos) {
+    const pos = document.getElementById('sel-pos').value;
+    prevPos.textContent = pos ? `Arguing: ${pos.substring(0,50)}` : 'Pick a position →';
+  }
 }
 
 document.addEventListener('change', e => {
