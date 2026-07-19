@@ -51,12 +51,20 @@ npm run dev         # Express (random port) + Vite dev server with /api proxy
 | Secondary | `claude-haiku-4-5` | Layers 1, 4 — independent context mapping and critique |
 
 Override either model in ⚙ Settings. Providers supported: **Anthropic** (via server proxy),
-**Local** (Ollama / LM Studio on your machine — no key, no cloud, fully private),
+**Local / Self-Hosted** (Ollama, LM Studio, or any OpenAI-compatible server on this machine
+or your LAN — e.g. a vLLM endpoint on another box — no key, no cloud, fully private),
 **Groq** (fast, free-tier Llama models, key required), **OpenRouter** (100+ models, key
 required), and **Free** (OpenRouter free-tier models).
 
-To use the Local provider: install [Ollama](https://ollama.com), run `ollama pull llama3.2`,
-then pick **Local** in ⚙ Settings. LM Studio works too (endpoint `http://localhost:1234`).
+To use Ollama: install from [ollama.com](https://ollama.com), run `ollama pull llama3.2`,
+then pick **Local / Self-Hosted** in ⚙ Settings. LM Studio works too (`http://localhost:1234`).
+
+To point at a self-hosted model elsewhere on your network (e.g. vLLM on a GPU box), set in `.env`:
+```
+LOCAL_LLM_BASE_URL=http://10.20.1.232:8001/v1
+LOCAL_LLM_MODEL=google/gemma-4-26B-A4B-it
+```
+Private network addresses only (`10.x`, `172.16–31.x`, `192.168.x`) — public hosts are rejected.
 
 To use Groq: get a free key at [console.groq.com/keys](https://console.groq.com/keys), then
 either paste it into ⚙ Settings or set `GROQ_API_KEY` in `.env`.
