@@ -599,6 +599,7 @@
         <select id="set-provider" onchange="updateSettingsHints()" style="width:100%;margin-top:4px;font-size:12px;padding:6px 8px;border:1px solid var(--rule-heavy);background:var(--paper);font-family:var(--mono);">
           <option value="anthropic">Anthropic (Claude) — via secure proxy</option>
           <option value="local">Local — Ollama / LM Studio (no key, private)</option>
+          <option value="groq">Groq — fast, free-tier Llama models, BYOK</option>
           <option value="openrouter">OpenRouter — 100+ models, BYOK</option>
           <option value="free">Free tier (OpenRouter free models)</option>
         </select>
@@ -634,6 +635,7 @@
       <div style="background:var(--paper2);border:1px solid var(--rule);padding:10px;font-family:var(--mono);font-size:9px;color:var(--ink3);line-height:1.7;">
         <strong>Provider notes:</strong><br>
         • <strong>Local</strong>: Ollama or LM Studio on this machine — no key, no cloud, fully private. Install from ollama.com, then <code>ollama pull llama3.2</code>.<br>
+        • <strong>Groq</strong>: Free API key at console.groq.com/keys — very fast Llama inference. Key goes through the server proxy, or set GROQ_API_KEY in .env.<br>
         • <strong>Anthropic</strong>: Key stays server-side in .env — leave API key blank to use server key.<br>
         • <strong>OpenRouter</strong>: Get a key at openrouter.ai/keys — access 100+ models including GPT-4o, Gemini, Llama.<br>
         • <strong>Free</strong>: Uses OpenRouter's free-tier models (Llama 3.3, Qwen3). Slower but no cost.

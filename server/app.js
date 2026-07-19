@@ -77,6 +77,30 @@ app.post('/api/claude', (req, res) => {
   proxy.end();
 });
 
+// ── Groq proxy ──────────────────────────────────────────────
+app.post('/api/groq', async (req, res) => {
+  if (!req.body || !req.body.messages) return res.status(400).json({ error: 'Missing messages' });
+  const userKey = req.headers['x-user-api-key'] || '';
+  const key = userKey || process.env.GROQ_API_KEY || '';
+  if (!key) return res.status(500).json({ error: 'No Groq API key. Set GROQ_API_KEY in .env or add your key in ⚙ Settings.' });
+
+  try {
+    const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({
+        model: req.body.model || 'llama-3.3-70b-versatile',
+        max_tokens: req.body.max_tokens || 1200,
+        messages: req.body.messages,
+      }),
+    });
+    const text = await upstream.text();
+    res.status(upstream.status).type('application/json').send(text);
+  } catch (err) {
+    res.status(502).json({ error: 'Groq proxy error: ' + err.message });
+  }
+});
+
 // ── Local model proxy (Ollama / LM Studio) ─────────────────
 // OpenAI-compatible chat endpoint on this machine. Proxied server-side
 // so the browser needs no CORS setup. Restricted to localhost targets.

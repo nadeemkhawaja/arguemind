@@ -1673,6 +1673,7 @@ function getPrimaryModel() {
   const provider = s.provider || 'anthropic';
   if (provider === 'anthropic') return s.primaryModel || 'claude-opus-4-8';
   if (provider === 'local') return s.primaryModel || 'llama3.2';
+  if (provider === 'groq') return s.primaryModel || 'llama-3.3-70b-versatile';
   if (provider === 'openrouter') return s.primaryModel || 'anthropic/claude-opus-4.8';
   return s.primaryModel || 'meta-llama/llama-3.3-70b-instruct:free';
 }
@@ -1682,6 +1683,7 @@ function getSecondaryModel() {
   const provider = s.provider || 'anthropic';
   if (provider === 'anthropic') return s.secondaryModel || 'claude-haiku-4-5';
   if (provider === 'local') return s.secondaryModel || 'llama3.2';
+  if (provider === 'groq') return s.secondaryModel || 'llama-3.1-8b-instant';
   if (provider === 'openrouter') return s.secondaryModel || 'anthropic/claude-haiku-4.5';
   return s.secondaryModel || 'qwen/qwen3-next-80b-a3b-instruct:free';
 }
@@ -1734,6 +1736,18 @@ async function _apiFetch(prompt, maxTokens, useSecondary) {
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }]
       })
+    });
+  }
+
+  if (provider === 'groq') {
+    // Via server proxy (key in .env or user-supplied in header) — same pattern as Anthropic
+    return fetch('/api/groq', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(userKey ? { 'x-user-api-key': userKey } : {})
+      },
+      body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
     });
   }
 
@@ -1808,6 +1822,7 @@ function updateSettingsHints() {
   const hints = {
     anthropic: { key:'sk-ant-...  (get from console.anthropic.com)', p:'claude-opus-4-8', s:'claude-haiku-4-5' },
     local: { key:'No API key needed — models run entirely on your machine', p:'llama3.2', s:'llama3.2' },
+    groq: { key:'gsk_...  (get a free key at console.groq.com/keys)', p:'llama-3.3-70b-versatile', s:'llama-3.1-8b-instant' },
     openrouter: { key:'sk-or-...  (get from openrouter.ai/keys)', p:'anthropic/claude-opus-4.8', s:'anthropic/claude-haiku-4.5' },
     free: { key:'sk-or-...  (optional — free models on OpenRouter)', p:'meta-llama/llama-3.3-70b-instruct:free', s:'qwen/qwen3-next-80b-a3b-instruct:free' },
   };
@@ -1822,9 +1837,9 @@ function updateSettingsBadge() {
   const el = document.getElementById('settings-badge');
   if (el) {
     const p = s.provider || 'anthropic';
-    const labels = { anthropic:'Claude', local:'Local', openrouter:'OpenRouter', free:'Free' };
+    const labels = { anthropic:'Claude', local:'Local', groq:'Groq', openrouter:'OpenRouter', free:'Free' };
     el.textContent = labels[p] || 'Claude';
-    el.style.background = p === 'anthropic' ? '#c41230' : p === 'local' ? '#0e7490' : p === 'openrouter' ? '#5b3dbd' : '#2e7d32';
+    el.style.background = p === 'anthropic' ? '#c41230' : p === 'local' ? '#0e7490' : p === 'groq' ? '#f97316' : p === 'openrouter' ? '#5b3dbd' : '#2e7d32';
   }
 }
 

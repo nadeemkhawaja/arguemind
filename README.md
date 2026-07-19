@@ -50,12 +50,16 @@ npm run dev         # Express (random port) + Vite dev server with /api proxy
 | Primary | `claude-opus-4-8` | Layers 2, 3, 5 — arguments, counter-arguments, verdict |
 | Secondary | `claude-haiku-4-5` | Layers 1, 4 — independent context mapping and critique |
 
-Override either model in ⚙ Settings. Providers supported: **Anthropic** (via local proxy),
+Override either model in ⚙ Settings. Providers supported: **Anthropic** (via server proxy),
 **Local** (Ollama / LM Studio on your machine — no key, no cloud, fully private),
-**OpenRouter** (100+ models, key required), and **Free** (OpenRouter free-tier models).
+**Groq** (fast, free-tier Llama models, key required), **OpenRouter** (100+ models, key
+required), and **Free** (OpenRouter free-tier models).
 
 To use the Local provider: install [Ollama](https://ollama.com), run `ollama pull llama3.2`,
 then pick **Local** in ⚙ Settings. LM Studio works too (endpoint `http://localhost:1234`).
+
+To use Groq: get a free key at [console.groq.com/keys](https://console.groq.com/keys), then
+either paste it into ⚙ Settings or set `GROQ_API_KEY` in `.env`.
 
 ---
 
